@@ -1,0 +1,25 @@
+name: taesks
+services:
+  taesks:
+    image: taesks:local
+    build: .
+    container_name: taesks
+    restart: unless-stopped
+    network_mode: bridge
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+      HOSTNAME: 0.0.0.0
+      PORT: "3000"
+      DATA_DIR: /app/data
+    ports:
+      - "2015:3000"
+    volumes:
+      - taesks_data:/app/data
+    stop_grace_period: 30s
+volumes:
+  taesks_data:
+    name: taesks_data

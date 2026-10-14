@@ -1,0 +1,100 @@
+import { mkdir } from "node:fs/promises";
+import { expect, test } from "@playwright/test";
+import { capture, navigate, workspace } from "./workspace.fixture";
+
+test("copy pass keeps navigation, meaningful empty states and accessible controls compact", async ({ page, isMobile }) => {
+  test.setTimeout(120_000);
+  const state = await workspace(page, true, true);
+  await page.route("**/api/health", route => route.fulfill({ contentType: "application/json", body: JSON.stringify({ status: "ok", services: { localDatabase: "ok", notion: "ok", github: "ok", contact: "ok" } }) }));
+  const directory = "test-results/copy-screenshots";
+  await mkdir(directory, { recursive: true });
+  const prefix = isMobile ? "mobile" : "desktop";
+  await page.setViewportSize(isMobile ? { width: 390, height: 844 } : { width: 1440, height: 900 });
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  async function shot(name: string) {
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: `${directory}/${prefix}-dark-${name}.png`, fullPage: true });
+  }
+
+  await page.keyboard.press("Control+k");
+  const palette = page.getByRole("dialog", { name: "Find your next move" });
+  await expect(palette.locator(".dialog-description")).toHaveCount(0);
+  await expect(palette.locator(".result-type")).toHaveCount(0);
+  await expect(palette.getByRole("heading", { name: "command", exact: true })).toBeVisible();
+  await expect(palette.getByRole("heading", { name: "navigation", exact: true })).toBeVisible();
+  await expect(palette.getByRole("button", { name: "Inbox", exact: true })).toBeVisible();
+  await expect(palette).not.toContainText("GitHub search includes");
+  expect(await palette.getAttribute("aria-describedby")).toBeNull();
+  const gap = await palette.evaluate(element => element.querySelector(".palette-search")!.getBoundingClientRect().top - element.querySelector(".dialog-heading")!.getBoundingClientRect().bottom);
+  expect(gap).toBeLessThanOrEqual(20);
+  await shot("command-palette");
+  await palette.getByRole("button", { name: "Inbox", exact: true }).click();
+  await expect(page.locator("h1")).toContainText("Inbox");
+  await shot("inbox");
+
+  await navigate(page, "Homework / English");
+  await expect(page.locator(".task-content").first()).toBeVisible();
+  await expect(page.locator("main")).not.toContainText("Files stay in your local");
+  await expect(page.locator("main")).not.toContainText("Markdown · code");
+  await expect(page.getByLabel("Upload attachment", { exact: true })).toHaveCount(1);
+  await shot("project-with-tasks");
+  state.graph.projects.push({ ...state.graph.projects[0], id: "empty", name: "Empty project", status: null, priority: null, dates: { start: null, end: null } });
+  await page.reload();
+  await expect(page.locator(".nav-label").filter({ hasText: "Empty project" })).toHaveCount(1);
+  await navigate(page, "Homework / Empty project");
+  await expect(page.locator(".compact-empty")).toContainText("// nothing here.");
+  await expect(page.locator(".entity-panel")).toContainText("// no note yet.");
+  await shot("empty-project");
+  await navigate(page, "Homework"); await shot("area");
+  await navigate(page, "Today"); await shot("today");
+
+  await navigate(page, "Someday");
+  await expect(page.locator("main")).toContainText("Someday idea");
+  await shot("someday-with-content");
+  state.graph.tasks = state.graph.tasks.filter(task => task.id !== "someday");
+  await page.reload();
+  await expect(page.locator("main")).toContainText("Ideas for another day will be waiting here.");
+  await shot("someday-empty");
+  await capture(page, "Read chapter tomorrow");
+  const composer = page.getByRole("dialog", { name: "Quick add", exact: true });
+  await expect(composer.getByPlaceholder("What needs doing?")).toBeVisible();
+  await expect(composer).toContainText("Choose a project.");
+  await expect(composer).toContainText("Choose an area.");
+  await expect(composer.getByRole("button", { name: "Create task", exact: true })).toBeDisabled();
+  await expect(composer).not.toContainText("recognized");
+  await shot("quick-add-unresolved"); await page.keyboard.press("Escape");
+
+  await navigate(page, "GitHub");
+  await expect(page.locator("main")).toContainText("read only");
+  await expect(page.locator("main")).not.toContainText("visible to this token");
+  await shot("github");
+  await page.getByRole("combobox", { name: "GitHub repository", exact: true }).selectOption("owner/repo");
+  await expect(page.getByRole("button", { name: /Mobile repository issue/ })).toBeVisible();
+  await shot("github-repository");
+  await navigate(page, "Contact");
+  await expect(page.locator(".contact-row")).toHaveCount(2);
+  await shot("contact");
+  await page.getByRole("button", { name: /Contact Visitor Tomorrow/ }).click();
+  await shot("contact-message");
+  await page.locator(".contact-detail").getByRole("button", { name: "Delete message", exact: true }).click();
+  const confirm = page.getByRole("dialog", { name: "Delete Contact message?" });
+  await expect(confirm).toContainText("It cannot be undone.");
+  await expect(confirm).toHaveAttribute("aria-describedby", /.+/);
+  await confirm.getByRole("button", { name: "Cancel", exact: true }).click();
+  expect(state.contactWrites).toHaveLength(0);
+  if (isMobile) await page.locator(".contact-back").click();
+  await navigate(page, "Settings & diagnostics");
+  await expect(page.locator(".settings-view")).toContainText("Local database");
+  await shot("settings-diagnostics");
+  await page.getByText("Set up GitHub", { exact: true }).click();
+  await expect(page.locator(".settings-view")).toContainText("GITHUB_TOKEN");
+  await expect(page.locator(".settings-view")).toContainText("Read permissions");
+
+  state.graph.tasks = [];
+  state.contactItems = [];
+  await page.reload();
+  await expect(page.locator(".settings-view")).toBeVisible();
+  await navigate(page, "Contact");
+  await expect(page.locator(".contact-list")).toContainText("// no matching messages");
+  await shot("contact-empty");
+});
