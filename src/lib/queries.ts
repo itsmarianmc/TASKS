@@ -53,6 +53,7 @@ export function useLocal(initialData?: LocalSnapshot) {
     queryKey: queryKeys.local,
     queryFn: ({ signal }) => optimisticRead(client, queryKeys.local, () => apiRequest<LocalSnapshot>("/api/local", { signal })),
     initialData,
+    initialDataUpdatedAt: initialData ? 0 : undefined,
     refetchOnMount: true,
   });
 }
@@ -61,7 +62,8 @@ export function useConfig(initialData?: PublicConfig) {
     queryKey: queryKeys.config,
     queryFn: () => apiRequest<PublicConfig>("/api/config"),
     initialData,
-    staleTime: Infinity,
+    initialDataUpdatedAt: initialData ? 0 : undefined,
+    staleTime: 300_000,
   });
 }
 export function useGraph(initialData?: GraphResponse) {
@@ -146,15 +148,17 @@ function verifiedRefresh<T extends { diagnostics?: Diagnostic[] }>(promise: Prom
 }
 export function useRefresh() {
   const client = useQueryClient();
-  return () => {
+  return async (onGraph?: (response: GraphResponse) => void) => {
+    await client.cancelQueries({ queryKey: queryKeys.graph });
     const before = cachedReadRevision();
+    const localRefresh = client.invalidateQueries({ queryKey: queryKeys.local });
     return Promise.allSettled([
-      client.invalidateQueries({ queryKey: queryKeys.local }),
+      localRefresh,
       verifiedRefresh(client.fetchQuery({
         queryKey: queryKeys.graph,
         queryFn: ({ signal }) => optimisticRead(client, queryKeys.graph, () => apiRequest<GraphResponse>("/api/graph?refresh=1", { signal })),
         staleTime: 0,
-      })),
+      })).then(async response => { await localRefresh; onGraph?.(response); return response; }),
       client.invalidateQueries({ queryKey: ["diagnostics"] }),
       ...client.getQueryCache().findAll({ queryKey: ["github"], type: "active" }).map(query => {
         const [, kind, repositoryOrPage, section, page] = query.queryKey;

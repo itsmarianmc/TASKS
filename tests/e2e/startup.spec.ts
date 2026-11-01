@@ -26,8 +26,9 @@ test("late Overview source summaries do not move cached tasks", async ({ page })
   expect(after).toBe(before);
 });
 
-for (const reducedMotion of [false, true]) {
-  test(`Overview handoff orders status, overlay and updated tasks${reducedMotion ? " with reduced motion" : " without animation events"}`, async ({ page }) => {
+for (const completion of ["without animation events", "with reduced motion", "with animation events", "when reduced motion changes"] as const) {
+  const reducedMotion = completion === "with reduced motion";
+  test(`Overview handoff orders status, overlay and updated tasks ${completion}`, async ({ page }) => {
     const state = await workspace(page, false, false, false, false);
     state.local.preferences.showCompletedTasks = false;
     await initialSnapshot(page, structuredClone(state.graph), state.local, "overview");
@@ -66,6 +67,13 @@ for (const reducedMotion of [false, true]) {
     await expect(prepare).toHaveClass(/active/);
     await expect(row).toContainText("Updated before reveal");
     await expect(page.locator(".startup-workspace")).toHaveAttribute("inert", "");
+    await expect(page.locator(".startup-workspace")).toHaveAttribute("aria-hidden", "true");
+    await expect(page.getByRole("heading", { name: /^Overview/, level: 1 })).toHaveCount(0);
+    await page.keyboard.press("Control+k");
+    await page.keyboard.press("n");
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    expect(await page.locator(".startup-workspace").evaluate(element => element.contains(document.activeElement))).toBe(false);
     await expect(page.locator("html")).not.toHaveAttribute("data-stale-task-shown", "true");
     const before = await row.boundingBox();
     const liveRegion = await page.locator(".boot-status").elementHandle();
@@ -82,7 +90,7 @@ for (const reducedMotion of [false, true]) {
     await page.clock.runFor(1);
     await expect(prepare.locator(".boot-marker")).toHaveText("[✓]");
     await expect(splash).toHaveAttribute("data-phase", "holding");
-    await page.clock.runFor(199);
+    await page.clock.runFor(399);
     await expect(splash).toHaveAttribute("data-phase", "holding");
     await expect(splash).toHaveCSS("opacity", "1");
     await page.clock.runFor(1);
@@ -93,39 +101,88 @@ for (const reducedMotion of [false, true]) {
     } else {
       await expect(prepare.locator(".boot-marker")).toHaveText("[✓]");
       await expect(splash).toHaveAttribute("data-phase", "exiting");
+      if (completion === "without animation events") await page.evaluate(() => {
+        // Seeking a paused CSS animation to its end can still emit animationend.
+        window.addEventListener("animationend", event => event.stopImmediatePropagation(), true);
+      });
       const timing = await splash.evaluate(element => element.getAnimations({ subtree: true }).map(animation => {
-        animation.pause(); // No animationend can complete the handoff in this test.
+        animation.pause();
         animation.currentTime = 0;
-        return { duration: animation.effect!.getTiming().duration };
+        return { name: (animation as CSSAnimation).animationName, duration: animation.effect!.getTiming().duration };
       }));
       expect(timing).toHaveLength(2);
-      expect(timing.every(animation => animation.duration === 320)).toBe(true);
+      expect(timing).toEqual(expect.arrayContaining([
+        { name: "boot-exit-opacity", duration: 300 },
+        { name: "boot-exit", duration: 350 },
+      ]));
       await expect(splash).toHaveCSS("opacity", "1");
+      await expect(splash).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+      expect(await splash.evaluate(element => getComputedStyle(element, "::before").opacity)).toBe("1");
+      await expect(page.locator(".workspace-header")).toBeVisible();
+      await expect(row).toBeVisible();
+      await expect(row).toHaveCSS("opacity", "1");
+      await expect(page.locator(".workspace")).toHaveCSS("visibility", "visible");
       await expect(splash.locator(".boot-content")).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, 0)");
-      await splash.evaluate(element => element.getAnimations({ subtree: true }).forEach(animation => { animation.currentTime = 160; }));
-      const middle = await splash.evaluate(element => ({ opacity: Number(getComputedStyle(element).opacity), scale: new DOMMatrix(getComputedStyle(element.querySelector(".boot-content")!).transform).a }));
+      await splash.evaluate(element => element.getAnimations({ subtree: true }).forEach(animation => { animation.currentTime = 175; }));
+      const middle = await splash.evaluate(element => ({ opacity: Number(getComputedStyle(element, "::before").opacity), contentOpacity: Number(getComputedStyle(element.querySelector(".boot-content")!).opacity), scale: new DOMMatrix(getComputedStyle(element.querySelector(".boot-content")!).transform).a }));
       expect(middle.opacity).toBeGreaterThan(0);
       expect(middle.opacity).toBeLessThan(1);
       expect(middle.scale).toBeGreaterThan(1);
-      expect(middle.scale).toBeLessThan(2);
+      expect(middle.scale).toBeLessThan(3);
+      expect(middle.contentOpacity).toBeGreaterThan(0);
+      expect(middle.contentOpacity).toBeLessThan(1);
       await page.screenshot({ path: test.info().outputPath("handoff-midpoint.png") });
-      await splash.evaluate(element => element.getAnimations({ subtree: true }).forEach(animation => { animation.currentTime = 320; }));
-      await expect(splash).toHaveCSS("opacity", "0");
-      await expect(splash.locator(".boot-content")).toHaveCSS("transform", "matrix(2, 0, 0, 2, 0, 0)");
-      await page.clock.runFor(319);
-      await expect(splash).toHaveCount(1);
-      await page.clock.runFor(1);
-      await expect(splash).toHaveCount(0);
+      for (const time of [300, 325]) {
+        await splash.evaluate((element, time) => element.getAnimations({ subtree: true }).forEach(animation => { animation.currentTime = time; }), time);
+        expect(await splash.evaluate(element => getComputedStyle(element, "::before").opacity)).toBe("0");
+        expect(await splash.locator(".boot-content").evaluate(element => Number(getComputedStyle(element).opacity))).toBeGreaterThan(0);
+        await expect(row).toContainText("Updated before reveal");
+        await expect(page.locator(".startup-workspace")).toHaveAttribute("inert", "");
+        await page.screenshot({ path: test.info().outputPath(`handoff-${time}ms.png`) });
+      }
+      if (completion === "with animation events") {
+        await splash.evaluate(element => element.dispatchEvent(new AnimationEvent("animationend", { bubbles: true, animationName: "boot-exit-opacity", pseudoElement: "::before" })));
+        await splash.locator(".boot-marker").first().evaluate(element => element.dispatchEvent(new AnimationEvent("animationend", { bubbles: true, animationName: "boot-exit" })));
+        await expect(splash).toHaveCount(1);
+        await splash.locator(".boot-content").evaluate(element => element.dispatchEvent(new AnimationEvent("animationend", { bubbles: true, animationName: "boot-exit" })));
+        await expect(splash).toHaveCount(0);
+      } else if (completion === "when reduced motion changes") {
+        await page.emulateMedia({ reducedMotion: "reduce" });
+        await expect(splash).toHaveCount(0);
+      } else {
+        await splash.evaluate(element => element.getAnimations({ subtree: true }).forEach(animation => { animation.currentTime = 350; }));
+        await expect(splash.locator(".boot-content")).toHaveCSS("opacity", "0");
+        await expect(splash.locator(".boot-content")).toHaveCSS("transform", "matrix(3, 0, 0, 3, 0, 0)");
+        await page.clock.runFor(349);
+        await expect(splash).toHaveCount(1);
+        await page.clock.runFor(1);
+        await expect(splash).toHaveCount(0);
+      }
     }
     const prepareAt = Number(await page.locator("html").getAttribute("data-prepare-done-at"));
     expect(prepareAt - notionAt).toBe(250);
     expect(await row.boundingBox()).toEqual(before);
     expect(await liveRegion!.evaluate(element => element === document.querySelector(".startup-announcement .boot-status"))).toBe(true);
     await expect(page.locator(".startup-announcement")).toContainText("Workspace ready");
+    await expect(page.locator(".startup-announcement .boot-status")).toHaveAttribute("role", "status");
+    await expect(page.locator(".startup-announcement .boot-status")).toHaveAttribute("aria-live", "polite");
     await expect(page.locator(".startup-workspace")).not.toHaveAttribute("inert", "");
+    await expect(page.locator(".startup-workspace")).toHaveAttribute("aria-hidden", "false");
+    await expect(page.getByRole("heading", { name: /^Overview/, level: 1 })).toBeVisible();
+    expect(await page.locator(".startup-announcement").evaluate(element => element.contains(document.activeElement))).toBe(false);
     await expect(page.locator("html")).not.toHaveAttribute("data-stale-task-shown", "true");
     await page.clock.resume();
     await page.screenshot({ path: test.info().outputPath("handoff-finished.png") });
+    const search = page.locator(".header-search");
+    await search.focus();
+    await expect(search).toBeFocused();
+    await page.keyboard.press("Control+k");
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.keyboard.press("Escape");
+    const dismissSidebar = page.getByRole("button", { name: "Close sidebar", exact: true });
+    if (await dismissSidebar.isVisible()) await page.getByRole("button", { name: "Collapse sidebar", exact: true }).click();
+    await search.click();
+    await expect(page.getByRole("dialog")).toBeVisible();
   });
 }
 
@@ -133,6 +190,7 @@ for (const failure of [false, true]) {
   test(`cached workspace waits for ${failure ? "a failed" : "a successful"} first task check and stays open during later refreshes`, async ({ page }) => {
     const state = await workspace(page, false, false, false, false);
     state.local.preferences.showCompletedTasks = false;
+    state.local.preferences.sidebarCollapsed = true;
     await initialSnapshot(page, structuredClone(state.graph), state.local);
     state.graph.tasks.find(task => task.id === "now")!.completed = true;
     state.graph.syncedAt = "2026-10-03T12:00:01Z";

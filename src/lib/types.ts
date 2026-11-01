@@ -45,7 +45,7 @@ export interface InboxDraft {
   createdAt: string; updatedAt: string;
 }
 export type Theme = "light" | "dark" | "system";
-export interface Preferences { theme: Theme; sidebarCollapsed: boolean; lastView: string; notificationPermissionAsked: boolean; showCompletedTasks?: boolean; hideProjectsWithoutCurrentTasks?: boolean }
+export interface Preferences { language?: string; literalQuotedText?: boolean; theme: Theme; sidebarCollapsed: boolean; lastView: string; notificationPermissionAsked: boolean; showCompletedTasks?: boolean; hideProjectsWithoutCurrentTasks?: boolean }
 export interface NotionMapping {
   completionProperty?: string; completionValue?: string; reopenValue?: string;
   taskTitleProperty?: string; taskDateProperty?: string; taskAreaProperty?: string; taskProjectProperty?: string; taskHighlightProperty?: string;
@@ -57,7 +57,7 @@ export interface LocalSnapshot {
   integrations: ProjectIntegration[]; externalLinks: ExternalItemLink[]; drafts: InboxDraft[];
   preferences: Preferences; notionMapping: NotionMapping;
 }
-export interface ParseContext { projectId?: string; areaId?: string; today?: ISODate; timezone?: string }
+export interface ParseContext { literalQuotedText?: boolean; dateCatalog?: import("./catalogs").DateCatalog; projectId?: string; areaId?: string; today?: ISODate; timezone?: string }
 export interface ParseResult {
   input: string; title: string; projectId: string | null; areaId: string | null; dates: DateRange;
   tags: string[]; priority: Priority; recurrenceRule: RecurrenceRule | null; confidence: number;

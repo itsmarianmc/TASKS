@@ -108,3 +108,7 @@ Den Kopiererfolg vor dem erneuten Start prüfen. Alternativ den Volume-Backupmec
 - Kein eigenes Login: Zugriff durch VPN, Reverse-Proxy-Authentifizierung oder interne Infrastruktur beschränken. TLS und externe Zugangskontrolle liegen außerhalb dieses einzelnen Appcontainers. JSON-Mutationen prüfen Origin, Uploads und Markdown sind validiert. Production-CSP erlaubt Next-Inline-Bootstrap, aber kein unsafe-eval.
 
 Nicht nachgewiesen sind echtes Safari/iOS, installierte Geräte-PWA, OS-Benachrichtigung und Hintergrund-Push; Contact-Schreibrechte werden durch die getrennte API vergeben. Kein Backup-Versprechen für externe Daten. Weitere Verträge: [ARCHITECTURE](docs/ARCHITECTURE.md), [NOTION](docs/NOTION.md), [GITHUB](docs/GITHUB.md), [CONTACT](docs/CONTACT.md), [LOCAL](docs/LOCAL.md), [PWA](docs/PWA.md), [RELIABILITY](docs/RELIABILITY.md).
+
+## Language catalogs and task interaction settings
+
+Optional server-only `LANGUAGE_JSON_URL` and `SHORT_DATES_JSON_URL` accept comma-separated direct JSON URLs. Whitespace is trimmed; commas inside URLs must be encoded as `%2C`. Settings includes a persisted language selector and a quoted-text parsing preference. See [catalog schemas, matching, fallback and interaction behavior](docs/language-catalogs.md) and `.env.example`.

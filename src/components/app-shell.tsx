@@ -1,6 +1,7 @@
 "use client";
+import { useTranslation } from "./localization";
 
-import { useState, useEffect, useEffectEvent, useSyncExternalStore } from "react";
+import { useState, useEffect, useEffectEvent, useSyncExternalStore, useRef } from "react";
 import {
   ChevronRight,
   Plus,
@@ -16,7 +17,10 @@ import {
 } from "@/lib/queries";
 import { emptyGraph } from "@/lib/public-config";
 import type { EntityRef, Graph, InboxDraft, LocalSnapshot, Task } from "@/lib/types";
-import { useTaskMutation } from "@/lib/task-queries";
+import { useCompletion } from "@/lib/completion-queries";
+import { refreshArrivals } from "@/lib/refresh-arrivals";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys, type GraphResponse } from "@/lib/queries";
 import {
   calendarToday,
   tasksForView,
@@ -55,6 +59,7 @@ import { projectContext, projectView, projectResourceId, viewUrl, viewFromParams
 import type { NotionGraphResponse } from "@/lib/notion-contracts";
 import type { PublicConfig } from "@/lib/public-config";
 import { StartupLoader } from "./startup-loader";
+import { DateChips } from "./date-chips";
 import { startupStatus, type StartupRead } from "@/lib/startup-status";
 
 const subscribeHydration = () => () => {};
@@ -120,6 +125,7 @@ type StartupQueries = {
 };
 
 function Workspace({ local, deviceDrafts, initialView, graphQuery, startupQueries }: { local: LocalSnapshot; deviceDrafts: ReturnType<typeof useDeviceDrafts>; initialView?: string; graphQuery: ReturnType<typeof useGraph>; startupQueries: StartupQueries }) {
+  const { t, text: tx, locale } = useTranslation();
   const online = useOnline();
   const { github, contact, unreadContact, config } = startupQueries;
   const [contactItem, setContactItem] = useState<ContactItem | null>(null);
@@ -150,10 +156,18 @@ function Workspace({ local, deviceDrafts, initialView, graphQuery, startupQuerie
   const [announcement, setAnnouncement] = useState("");
   const [taskWarnings, setTaskWarnings] = useState<string[]>([]);
   const [localEntity, setLocalEntity] = useState<EntityRef | null>(null);
-  const taskMutation = useTaskMutation();
+  const completeTask = useCompletion();
+  const queryClient = useQueryClient();
+  const refreshBusy = useRef(false);
+  const animatedIds = useRef(new Set<string>());
+  const [arrivals, setArrivals] = useState<{ view: string; ids: string[] }>({ view: "", ids: [] });
+  const activeView = useRef(view);
+  const navigationVersion = useRef(0);
+  useEffect(() => { activeView.current = view; }, [view]);
+  useEffect(() => { if (!arrivals.ids.length) return; const timer = setTimeout(() => setArrivals({ view: "", ids: [] }), 600); return () => clearTimeout(timer); }, [arrivals]);
   const completionEnabled = !graphQuery.error && (graphQuery.data?.completionEnabled ?? false);
   const selected = graph.tasks.find((task) => task.id === selectedId || task.clientKey === selectedId) ?? null;
-  const title = viewTitle(view, graph, local);
+  const title = viewTitle(view, graph, local, tx);
   const tasks = tasksForView(view, graph, local, today);
   const sections = taskSections(view, graph, local, today);
   const context = projectContext(view);
@@ -191,6 +205,8 @@ function Workspace({ local, deviceDrafts, initialView, graphQuery, startupQuerie
     notion?.status === "error" ||
     notion?.status === "unavailable";
   function navigate(next: ViewId) {
+    navigationVersion.current++;
+    setArrivals({ view: "", ids: [] });
     window.history.pushState(null, "", viewUrl(next));
     setView(next);
     setSelectedId(null);
@@ -198,6 +214,8 @@ function Workspace({ local, deviceDrafts, initialView, graphQuery, startupQuerie
   }
   useEffect(() => {
     const onBack = () => {
+      navigationVersion.current++;
+      setArrivals({ view: "", ids: [] });
       setView(viewFromParams(new URLSearchParams(window.location.search)) ?? "overview");
       setSelectedId(null);
     };
@@ -212,8 +230,21 @@ function Workspace({ local, deviceDrafts, initialView, graphQuery, startupQuerie
     });
   }
   async function refreshData() {
+    if (refreshBusy.current) return;
+    refreshBusy.current = true;
+    const startedView = view;
+    const startedNavigation = navigationVersion.current;
+    const before = new Set((queryClient.getQueryData<GraphResponse>(queryKeys.graph)?.graph.tasks ?? []).map(task => task.id));
     setAnnouncement("Refreshing your workspace…");
-    const results = await refresh();
+    let results;
+    try {
+      results = await refresh(response => {
+        if (activeView.current !== startedView || navigationVersion.current !== startedNavigation) return;
+        const currentLocal = queryClient.getQueryData<LocalSnapshot>(queryKeys.local) ?? local;
+        const ids = refreshArrivals(before, response.graph.tasks, tasksForView(startedView, response.graph, currentLocal, today), animatedIds.current);
+        setArrivals({ view: startedView, ids });
+      });
+    } finally { refreshBusy.current = false; }
     setAnnouncement(
       results.some((result) => result.status === "rejected")
         ? "Some sources could not be refreshed. Check diagnostics."
@@ -229,10 +260,10 @@ function Workspace({ local, deviceDrafts, initialView, graphQuery, startupQuerie
       requestAnimationFrame(() => { if (!active.isConnected) neighbour?.focus(); });
     }
     setTaskWarnings([]);
-    setAnnouncement(task.completed ? "Task reopened." : "Task completed.");
+
     try {
-      const result = await taskMutation.mutateAsync({ kind: "patch", id: task.id, body: { completed: !task.completed } });
-      if (result) setTaskWarnings(result.warnings);
+      const result = await completeTask(task);
+      if (result) { setTaskWarnings(result.warnings); setAnnouncement(result.task.completed ? "Task completed." : "Task reopened."); }
     } catch { /* Global feedback survives the removed row. */ }
   }
   const keyboard = useEffectEvent((event: KeyboardEvent) => {
@@ -306,6 +337,7 @@ function Workspace({ local, deviceDrafts, initialView, graphQuery, startupQuerie
               )
               .filter((value): value is string => !!value)}
             completionEnabled={completionEnabled}
+            animateArrival={arrivals.view === view && arrivals.ids.includes(task.id)}
             pending={false}
             showContext={!project}
             onComplete={() => void toggleTask(task)}
@@ -321,13 +353,12 @@ function Workspace({ local, deviceDrafts, initialView, graphQuery, startupQuerie
     >
       <ThemeSync theme={local.preferences.theme} />
       <a className="skip-link" href="#workspace">
-        Skip to workspace
-      </a>
+        {t("ui.skip_to_workspace")}</a>
       <aside className="desktop-sidebar" id="desktop-sidebar">{navigation}</aside>
       {!local.preferences.sidebarCollapsed && <button
         type="button"
         className="mobile-sidebar-dismiss"
-        aria-label="Close sidebar"
+        aria-label={t("ui.close_sidebar")}
         onPointerDown={event => { event.preventDefault(); event.stopPropagation(); }}
         onPointerUp={event => { event.preventDefault(); event.stopPropagation(); }}
         onClick={event => {
@@ -340,18 +371,18 @@ function Workspace({ local, deviceDrafts, initialView, graphQuery, startupQuerie
         <header className="workspace-header">
           <div className="header-path">
             <span className="desktop-breadcrumb">
-              workspace <ChevronRight size={12} />
+              {t("ui.workspace_a279fe9")}{" "}<ChevronRight size={12} />
             </span>
             {parentArea && (
               <button
                 className="breadcrumb-button"
                 onClick={() => navigate(`area:${parentArea.id}`)}
               >
-                {parentArea.name}
+                <span className="meta-chip meta-area">{parentArea.name}</span>
                 <ChevronRight size={12} />
               </button>
             )}
-            <span className="header-current">
+            <span className={`header-current${project ? " meta-chip meta-project" : area ? " meta-chip meta-area" : ""}`}>
               {project ? "$ " : area ? "@ " : ""}
               {title}
             </span>
@@ -359,27 +390,27 @@ function Workspace({ local, deviceDrafts, initialView, graphQuery, startupQuerie
           <div className="header-actions">
             <button
               className="icon-button header-search"
-              aria-label="Search"
-              title="Search"
+              aria-label={t("ui.search")}
+              title={t("ui.search")}
               onClick={() => setPalette(true)}
             >
               <Search size={15} />
             </button>
             <button
               className={`icon-button ${graphQuery.isFetching ? "refreshing" : ""}`}
-              aria-label="Refresh data"
+              aria-label={t("ui.refresh_data")}
               disabled={graphQuery.isFetching}
               onClick={() => void refreshData()}
             >
               <RefreshCw size={14} />
             </button>
             <button
-              className="button header-add" aria-label="New task"
+              className="button header-add" aria-label={t("ui.new_task")}
               onClick={() => setCapture(true)}
             >
               <Plus size={13} />
-              <span>New task</span>
-              <kbd>N</kbd>
+              <span>{t("ui.new_task")}</span>
+              <kbd>{t("ui.n_b51a607")}</kbd>
             </button>
           </div>
         </header>
@@ -390,7 +421,7 @@ function Workspace({ local, deviceDrafts, initialView, graphQuery, startupQuerie
           <div className="view-heading">
             <div>
               {!project && !area && !["settings", "github", "contact"].includes(view) && <p className="eyebrow">
-                {new Intl.DateTimeFormat("en-GB", {
+                {new Intl.DateTimeFormat(locale, {
                             timeZone: timezone,
                             weekday: "long",
                             day: "numeric",
@@ -400,13 +431,11 @@ function Workspace({ local, deviceDrafts, initialView, graphQuery, startupQuerie
                             .toUpperCase()}
               </p>}
               <h1>
-                <span>{project && <span className="accent">$ </span>}{project && parentArea ? `${parentArea.name} / ` : ""}{title}</span>
+                <span>{(project || area) && <span className={`meta-chip heading-context ${project ? "meta-project" : "meta-area"}`}>{project ? "$" : "@"}</span>}{" "}{project && parentArea ? <><span className="meta-chip meta-area heading-context">{parentArea.name}</span>{" / "}</> : ""}{title}</span>
                 <span className="heading-count">
                   {view === "settings" ||
                   view === "github" ||
-                  view === "contact"
-                    ? ""
-                    : viewTaskCount(view, graph, local, today) +
+                  view === "contact" ? "" : viewTaskCount(view, graph, local, today) +
                       (view === "inbox" ? local.drafts.length + externalCount : 0)}
                 </span>
               </h1>
@@ -414,12 +443,12 @@ function Workspace({ local, deviceDrafts, initialView, graphQuery, startupQuerie
                 <p className="view-intro">
                   {[
                     project.status,
-                    project.priority && `${project.priority} priority`,
-                    project.dates.end && `deadline ${project.dates.end}`,
-                    `${tasks.filter(task => task.completed).length}/${tasks.length} completed`,
+                    project.priority && t("project.priority", { priority: project.priority }),
+                    tx(`${tasks.filter(task => task.completed).length}/${tasks.length} completed`),
                   ]
                     .filter(Boolean)
                     .join(" · ")}
+                  {(project.dates.start || project.dates.end) && <> · <DateChips start={project.dates.start} end={project.dates.end} formatDate={date => date} /></>}
                 </p>
               )}
               {area?.type && <p className="view-intro">{area.type}</p>}
@@ -429,14 +458,13 @@ function Workspace({ local, deviceDrafts, initialView, graphQuery, startupQuerie
                 className="text-button view-capture"
                 onClick={() => setCapture(true)}
               >
-                <Plus size={13} /> task
-              </button>
+                <Plus size={13} /> {" "}{t("ui.task")}</button>
             )}
           </div>
           
           
           {view === "overview" && <DisplayControls preferences={local.preferences} compact />}
-          {taskWarnings.map((warning, index) => <p key={index} role="alert" className="error-text">{warning}</p>)}
+          {taskWarnings.map((warning, index) => <p key={index} role="alert" className="error-text">{tx(warning)}</p>)}
           {view === "settings" ? (
             <SettingsView
               graph={graph}
@@ -452,7 +480,7 @@ function Workspace({ local, deviceDrafts, initialView, graphQuery, startupQuerie
             <>
               {graphQuery.isPending ? (
                 <p className="loading-line" role="status">
-                  {"// loading tasks"}
+                  {t("ui.loading_tasks")}
                   <span className="cursor">_</span>
                 </p>
               ) : (
@@ -464,7 +492,7 @@ function Workspace({ local, deviceDrafts, initialView, graphQuery, startupQuerie
                     <section className="task-section">
                       <div className="section-heading">
                         <h2>
-                          drafts <span>{local.drafts.length}</span>
+                          {t("ui.drafts")}{" "}<span>{local.drafts.length}</span>
                         </h2>
                       </div>
                       {local.drafts.map((draft) => (
@@ -473,8 +501,8 @@ function Workspace({ local, deviceDrafts, initialView, graphQuery, startupQuerie
                           <div>
                             <strong>{draft.title || draft.input}</strong>
                             <p className="task-context">
-                              {deviceDrafts.some(entry => entry.draft.id === draft.id) ? "waiting to sync" : "draft"} ·{" "}
-                              {new Intl.DateTimeFormat("en-GB", {
+                              {deviceDrafts.some(entry => entry.draft.id === draft.id) ? t("ui.waiting_to_sync") : t("ui.draft")} ·{" "}
+                              {new Intl.DateTimeFormat(locale, {
                                 day: "numeric",
                                 month: "short",
                               }).format(new Date(draft.createdAt))}
@@ -484,14 +512,12 @@ function Workspace({ local, deviceDrafts, initialView, graphQuery, startupQuerie
                             className="text-button"
                             onClick={() => { setEditingDraft(draft); setCapture(true); }}
                           >
-                            Resolve
-                          </button>
+                            {t("ui.resolve")}</button>
                           <button
                             className="text-button danger-text"
                             onClick={() => setDeleteDraft(draft.id)}
                           >
-                            Delete
-                          </button>
+                            {t("ui.delete_f6fdbe4")}</button>
                         </div>
                       ))}
                     </section>
@@ -502,7 +528,7 @@ function Workspace({ local, deviceDrafts, initialView, graphQuery, startupQuerie
                     ).length > 0 && (
                       <section className="project-index">
                         <div className="section-heading">
-                          <h2>projects</h2>
+                          <h2>{t("ui.projects")}</h2>
                         </div>
                         {graph.projects
                           .filter((project) =>
@@ -514,8 +540,7 @@ function Workspace({ local, deviceDrafts, initialView, graphQuery, startupQuerie
                               key={project.id}
                               onClick={() => navigate(projectView(project.id, area.id))}
                             >
-                              <span className="accent">$</span>
-                              <span>{project.name}</span>
+                              <span className="meta-chip meta-project">$ {project.name}</span>
                               <span className="muted">{project.status}</span>
                               <span className="nav-count">
                                 {
@@ -527,65 +552,59 @@ function Workspace({ local, deviceDrafts, initialView, graphQuery, startupQuerie
                           ))}
                       </section>
                     )}
-                  {invalidContext && <p role="alert" className="error-text">This project does not belong to the selected area.</p>}
-                  {project && !parentArea && project.areaIds.length > 1 && <section className="task-section"><h2>Choose an area</h2>{project.areaIds.map(id => <button className="project-index-row" key={id} onClick={() => navigate(projectView(project.id, id))}>{graph.areas.find(area => area.id === id)?.name ?? id} / {project.name} →</button>)}</section>}
+                  {invalidContext && <p role="alert" className="error-text">{t("ui.this_project_does_not_belong_to_the_selected_area")}</p>}
+                  {project && !parentArea && project.areaIds.length > 1 && <section className="task-section"><h2>{t("ui.choose_an_area_2a5bae1")}</h2>{project.areaIds.map(id => <button className="project-index-row" key={id} onClick={() => navigate(projectView(project.id, id))}><span className="meta-chip meta-area">{graph.areas.find(area => area.id === id)?.name ?? id}</span>{" / "}<span className="meta-chip meta-project">{project.name}</span>{" →"}</button>)}</section>}
                   {tasks.length > 0 && !(project && !parentArea && project.areaIds.length > 1) ? (
                     <>
                       {sections.map(section => section.collapsed ? (
                         <details className="task-section collapsed-section" key={section.label}>
-                          <summary>{section.label} <span className="muted">{section.items.length}</span></summary>
+                          <summary>{tx(section.label)} <span className="muted">{section.items.length}</span></summary>
                           {renderTasks(section.items)}
                         </details>
                       ) : (
                         <section key={section.label} className={`task-section ${section.label === "overdue" ? "overdue" : ""}`}>
-                          <div className="section-heading"><h2>{sectionTitle(section.label)} <span>{section.items.length}</span></h2></div>
+                          <div className="section-heading"><h2>{["anytime", "someday"].includes(view) ? sectionTitle(section.label, locale) : tx(sectionTitle(section.label, locale))} <span>{section.items.length}</span></h2></div>
                           {renderTasks(section.items)}
                         </section>
                       ))}
                     </>
                   ) : (
                     !(view === "inbox" && (local.drafts.length || externalCount)) && (
-                      project ? <section className="task-section compact-empty"><div className="section-heading"><h2>tasks <span>0</span></h2></div><p className="annotation muted">{"// nothing here."}</p></section> : <EmptyState
+                      project ? <section className="task-section compact-empty"><div className="section-heading"><h2>{t("ui.tasks")}{" "}<span>0</span></h2></div><p className="annotation muted">{t("ui.nothing_here")}</p></section> : <EmptyState
                         title={
-                          unavailable
-                            ? "// connect Notion in settings"
-                            : view === "inbox"
-                              ? "// you’re clear"
-                              : "// nothing here"
+                          unavailable ? t("ui.connect_notion_in_settings") : view === "inbox" ? t("ui.you_re_clear") : t("ui.nothing_here_64908a6")
                         }
                       >
-                        {view === "someday" && <p>Ideas for another day will be waiting here.</p>}
+                        {view === "someday" && <p>{t("ui.ideas_for_another_day_will_be_waiting_here")}</p>}
                         <div className="inline-actions">
                           <button
                             className="button primary"
                             onClick={() => setCapture(true)}
                           >
-                            <Plus size={13} /> task
-                          </button>
+                            <Plus size={13} /> {" "}{t("ui.task")}</button>
                           {unavailable && (
                             <button
                               className="button"
                               onClick={() => navigate("settings")}
                             >
-                              Connect Notion <ChevronRight size={13} />
+                              {t("ui.connect_notion_6f6761d")}{" "}<ChevronRight size={13} />
                             </button>
                           )}
                         </div>
                         <p className="empty-hint">
-                          <kbd>N</kbd> capture <span>·</span> <kbd>Ctrl K</kbd>{" "}
-                          find anything
-                        </p>
+                          <kbd>{t("ui.n_b51a607")}</kbd> {" "}{t("ui.capture_fbc259d")}{" "}<span>·</span> <kbd>{t("ui.ctrl_k")}</kbd>{" "}
+                          {t("ui.find_anything")}</p>
                       </EmptyState>
                     )
                   )}
-                  {(project || area) && !invalidContext && <button className="text-button add-task-line" onClick={() => setCapture(true)}>[+ task]</button>}
-                  {view === "overview" && githubCount > 0 && <button className="inbox-summary text-button purple" onClick={() => navigate("inbox")}>◇ inbox / GitHub {githubCount} waiting <ChevronRight size={12} /></button>}
-                  {view === "overview" && (contactCount ?? 0) > 0 && <button className="inbox-summary text-button" onClick={() => navigate("inbox")}>◇ inbox / Contact {contactCount} unread <ChevronRight size={12} /></button>}
-                  {view === "overview" && local.drafts.length > 0 && <button className="inbox-summary text-button" onClick={() => navigate("inbox")}>◇ inbox / {local.drafts.length} {local.drafts.length === 1 ? "draft" : "drafts"} <ChevronRight size={12} /></button>}
+                  {(project || area) && !invalidContext && <button className="text-button add-task-line" onClick={() => setCapture(true)}>{t("ui.task_2cc1438")}</button>}
+                  {view === "overview" && githubCount > 0 && <button className="inbox-summary text-button purple" onClick={() => navigate("inbox")}>{t("ui.inbox_github")}{" "}{githubCount} {" "}{t("ui.waiting")}{" "}<ChevronRight size={12} /></button>}
+                  {view === "overview" && (contactCount ?? 0) > 0 && <button className="inbox-summary text-button" onClick={() => navigate("inbox")}>{t("ui.inbox_contact")}{" "}{contactCount} {" "}{t("ui.unread")}{" "}<ChevronRight size={12} /></button>}
+                  {view === "overview" && local.drafts.length > 0 && <button className="inbox-summary text-button" onClick={() => navigate("inbox")}>{t("ui.inbox_e18a348")}{" "}{local.drafts.length} {local.drafts.length === 1 ? t("ui.draft") : t("ui.drafts")} <ChevronRight size={12} /></button>}
                   {unavailable && <div className="connection-notice" role="status">
                     <span className="notice-dot" />
-                    <div><strong>{graphQuery.error && graphQuery.data ? "Notion refresh failed" : graphQuery.error || notion?.status === "error" || notion?.status === "unavailable" ? "Notion is unavailable" : "Notion / not connected"}</strong><p>{graph.syncedAt ? "Last synced tasks retained. Retry or check diagnostics." : "Retry or check diagnostics. Drafts are still available."}</p></div>
-                    <button className="text-button" onClick={() => navigate("settings")}>Diagnostics <ChevronRight size={13} /></button>
+                    <div><strong>{graphQuery.error && graphQuery.data ? t("ui.notion_refresh_failed") : graphQuery.error || notion?.status === "error" || notion?.status === "unavailable" ? t("ui.notion_is_unavailable") : t("ui.notion_not_connected")}</strong><p>{graph.syncedAt ? t("ui.last_synced_tasks_retained_retry_or_check_diagnostics") : t("ui.retry_or_check_diagnostics_drafts_are_still_available")}</p></div>
+                    <button className="text-button" onClick={() => navigate("settings")}>{t("ui.diagnostics_3af2279")}{" "}<ChevronRight size={13} /></button>
                   </div>}
                   {entity && !invalidContext && !(project && !parentArea && project.areaIds.length > 1) && (
                     <EntityPanel
@@ -594,9 +613,9 @@ function Workspace({ local, deviceDrafts, initialView, graphQuery, startupQuerie
                       snapshot={local}
                     />
                   )}
-                  {entity && project && entity.id !== project.id && [...local.notes, ...local.links, ...local.attachments].some(value => value.entityType === "project" && value.entityId === project.id) && <details className="shared-project-resources"><summary>shared / {project.name}</summary><EntityPanel entity={{ type: "project", id: project.id }} snapshot={local} /></details>}
+                  {entity && project && entity.id !== project.id && [...local.notes, ...local.links, ...local.attachments].some(value => value.entityType === "project" && value.entityId === project.id) && <details className="shared-project-resources"><summary>{t("ui.shared")}{" "}<span className="meta-chip meta-project">{project.name}</span></summary><EntityPanel entity={{ type: "project", id: project.id }} snapshot={local} /></details>}
                   {mappedRepository && <GitHubRepositoryContext key={mappedRepository} repository={mappedRepository} local={local} onOpen={setGithubItem} />}
-                  </div>{view === "inbox" && <aside className="inbox-inspector">{contactItem ? <ContactDetail key={contactItem.id} item={contactItem} onClose={() => setContactItem(null)} onUpdated={setContactItem} graph={graph} local={local} timezone={timezone} onTask={setSelectedId} /> : <p className="muted annotation">{"// select a message"}</p>}</aside>}</div>
+                  </div>{view === "inbox" && <aside className="inbox-inspector">{contactItem ? <ContactDetail key={contactItem.id} item={contactItem} onClose={() => setContactItem(null)} onUpdated={setContactItem} graph={graph} local={local} timezone={timezone} onTask={setSelectedId} /> : <p className="muted annotation">{t("ui.select_a_message")}</p>}</aside>}</div>
                 </>
               )}
             </>
@@ -606,9 +625,7 @@ function Workspace({ local, deviceDrafts, initialView, graphQuery, startupQuerie
         <footer className="workspace-footer">
           <span>
             <span className={`status-dot ${unavailable ? "muted-dot" : ""}`} />
-            {graph.syncedAt
-              ? `synced ${new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: timezone }).format(new Date(graph.syncedAt))}`
-              : "ready"}
+            {graph.syncedAt ? t("ui.synced_value", { p0: new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit", timeZone: timezone }).format(new Date(graph.syncedAt)) }) : t("ui.ready")}
           </span>
           <span>
             {timezone} <span className="footer-divider">/</span> Æ
@@ -616,7 +633,7 @@ function Workspace({ local, deviceDrafts, initialView, graphQuery, startupQuerie
         </footer>
       </div>
       <div className="sr-only" role="status" aria-live="polite">
-        {announcement}
+        {tx(announcement)}
       </div>
       <CommandPalette
         open={palette}
@@ -631,7 +648,7 @@ function Workspace({ local, deviceDrafts, initialView, graphQuery, startupQuerie
         onDraft={id => { setEditingDraft(local.drafts.find(draft => draft.id === id)); setCapture(true); }}
         onLocalEntity={setLocalEntity}
         onContactOpen={setContactItem}
-        githubSearchMessage={githubCache.message}
+        githubSearchMessage={tx(githubCache.message)}
         externalItems={[...githubSearchItems.map(item => ({ id: item.id, label: `${item.repository}${item.number ? ` #${item.number}` : ""} · ${item.title}`, kind: "github" as const, keywords: `${item.kind} ${item.body} ${item.labels.join(" ")}`, onOpen: () => setGithubItem(item) })), ...githubCache.repositories.map(repo => ({ id: repo.id, label: repo.name, kind: "github" as const, keywords: repo.description, onOpen: () => { setGithubRepository(repo.name); navigate("github"); } })), ...contactSearchItems.map(item => ({ id: `contact:${item.id}`, label: `${item.name || item.email} · ${item.message.split(/\r?\n/)[0]}`, kind: "contact" as const, keywords: `${item.site_origin} ${item.email} ${item.message}`, onOpen: () => setContactItem(item) }))]}
       />
       {capture && (
@@ -658,50 +675,50 @@ function Workspace({ local, deviceDrafts, initialView, graphQuery, startupQuerie
         onClose={() => setSelectedId(null)}
         completionEnabled={completionEnabled}
       />
-      <Modal open={!!localEntity} onOpenChange={open => { if (!open) setLocalEntity(null); }} title="Local context" description="Unavailable in Notion. Saved notes, links and files are still here." className="inspector-dialog">
+      <Modal open={!!localEntity} onOpenChange={open => { if (!open) setLocalEntity(null); }} title={t("ui.local_context")} description={t("ui.unavailable_in_notion_saved_notes_links_and_files_are_still_here")} className="inspector-dialog">
         {localEntity && <><p className="muted">{localEntity.type}:{localEntity.id}</p><EntityPanel key={`${localEntity.type}:${localEntity.id}`} entity={localEntity} snapshot={local} /></>}
       </Modal>
       <Modal
         open={help}
         onOpenChange={setHelp}
-        title="Shortcuts"
+        title={t("ui.shortcuts")}
       >
         <dl className="shortcut-list">
           <div>
-            <dt>Search & commands</dt>
+            <dt>{t("ui.search_commands")}</dt>
             <dd>
-              <kbd>Ctrl / ⌘ K</kbd>
+              <kbd>{t("ui.ctrl_k_adc2882")}</kbd>
             </dd>
           </div>
           <div>
-            <dt>New capture</dt>
+            <dt>{t("ui.new_capture")}</dt>
             <dd>
-              <kbd>N</kbd>
+              <kbd>{t("ui.n_b51a607")}</kbd>
             </dd>
           </div>
           <div>
-            <dt>Close a dialog</dt>
+            <dt>{t("ui.close_a_dialog")}</dt>
             <dd>
-              <kbd>Esc</kbd>
+              <kbd>{t("ui.esc")}</kbd>
             </dd>
           </div>
           <div>
-            <dt>Navigate lists</dt>
+            <dt>{t("ui.navigate_lists")}</dt>
             <dd>
-              <kbd>↑ / K</kbd> <kbd>↓ / J</kbd>
+              <kbd>{t("ui.k_6e39f5c")}</kbd> <kbd>{t("ui.j_282487c")}</kbd>
             </dd>
           </div>
-          <div><dt>Complete / reopen focused task</dt><dd><kbd>X / Space</kbd></dd></div>
-          <div><dt>Edit focused task</dt><dd><kbd>E</kbd></dd></div>
-          <div><dt>Refresh sources</dt><dd><kbd>R</kbd></dd></div>
+          <div><dt>{t("ui.complete_reopen_focused_task")}</dt><dd><kbd>{t("ui.x_space")}</kbd></dd></div>
+          <div><dt>{t("ui.edit_focused_task")}</dt><dd><kbd>{t("ui.e_e0184ad")}</kbd></dd></div>
+          <div><dt>{t("ui.refresh_sources")}</dt><dd><kbd>{t("ui.r_0657655")}</kbd></dd></div>
           <div>
-            <dt>Open focused item</dt>
+            <dt>{t("ui.open_focused_item")}</dt>
             <dd>
-              <kbd>Enter</kbd>
+              <kbd>{t("ui.enter")}</kbd>
             </dd>
           </div>
           <div>
-            <dt>Show shortcuts</dt>
+            <dt>{t("ui.show_shortcuts")}</dt>
             <dd>
               <kbd>?</kbd>
             </dd>
@@ -713,8 +730,8 @@ function Workspace({ local, deviceDrafts, initialView, graphQuery, startupQuerie
         onOpenChange={(open) => {
           if (!open) setDeleteDraft(null);
         }}
-        title="Delete this draft?"
-        description="This removes the draft. It cannot be undone."
+        title={t("ui.delete_this_draft")}
+        description={t("ui.this_removes_the_draft_it_cannot_be_undone")}
         onConfirm={async () => {
           if (deleteDraft && deviceDrafts.some(entry => entry.draft.id === deleteDraft)) {
             const draft = local.drafts.find(draft => draft.id === deleteDraft);

@@ -2,6 +2,18 @@
 
 :root {
 	color-scheme: light;
+	--project-bg: #e6eef5;
+	--project-ink: #315b7a;
+	--project-border: #cad9e6;
+	--area-bg: #eee8f6;
+	--area-ink: #604a84;
+	--area-border: #d8cbea;
+	--start-bg: #e4f1ee;
+	--start-ink: #26665e;
+	--start-border: #bfded8;
+	--end-bg: #f5ecd9;
+	--end-ink: #815719;
+	--end-border: #ead6ae;
 	--bg: #f7f5f0;
 	--sidebar: #efeee8;
 	--surface: #ffffff;
@@ -25,6 +37,18 @@
 
 :root[data-theme="dark"] {
 	color-scheme: dark;
+	--project-bg: #20313d;
+	--project-ink: #b7d5ea;
+	--project-border: #385064;
+	--area-bg: #30283d;
+	--area-ink: #d0bdf0;
+	--area-border: #4a3b5e;
+	--start-bg: #1d3532;
+	--start-ink: #a6ded5;
+	--start-border: #34564f;
+	--end-bg: #3b301f;
+	--end-ink: #f2d092;
+	--end-border: #5d4b30;
 	--bg: #0c1116;
 	--sidebar: #10161c;
 	--surface: #171f27;
@@ -46,6 +70,18 @@
 @media (prefers-color-scheme: dark) {
 	:root:not([data-theme]) {
 		color-scheme: dark;
+		--project-bg: #20313d;
+		--project-ink: #b7d5ea;
+		--project-border: #385064;
+		--area-bg: #30283d;
+		--area-ink: #d0bdf0;
+		--area-border: #4a3b5e;
+		--start-bg: #1d3532;
+		--start-ink: #a6ded5;
+		--start-border: #34564f;
+		--end-bg: #3b301f;
+		--end-ink: #f2d092;
+		--end-border: #5d4b30;
 		--bg: #121816;
 		--sidebar: #101512;
 		--surface: #171f27;
@@ -264,6 +300,10 @@ kbd {
 	background: var(--hover);
 }
 
+a.button:hover:not(:disabled) {
+	text-decoration: none;
+}
+
 .button.primary {
 	background: var(--accent-bg);
 	color: var(--accent-ink);
@@ -283,11 +323,6 @@ kbd {
 	height: 29px;
 	border-radius: 12px;
 	color: var(--secondary);
-}
-
-.icon-button:hover:not(:disabled) {
-	background: var(--hover);
-	color: var(--ink);
 }
 
 .text-button {
@@ -658,6 +693,7 @@ kbd {
 }
 
 .header-add {
+	border-radius: 12px;
 	margin-left: 8px;
 }
 
@@ -1389,6 +1425,7 @@ h2 span {
 	width: min(540px, calc(100vw - 32px));
 	max-height: 76dvh;
 	overflow-y: auto;
+	overflow-x: hidden !important;
 	z-index: 50;
 	animation: appear 120ms ease-out;
 }
@@ -1693,9 +1730,15 @@ h2 span {
 	inset: 0;
 	z-index: 110;
 	overflow: clip;
-	background: var(--bg);
 	display: grid;
 	place-items: center;
+}
+
+.boot-screen::before {
+	content: "";
+	position: absolute;
+	inset: 0;
+	background: var(--bg);
 }
 
 .startup-workspace {
@@ -1703,6 +1746,7 @@ h2 span {
 }
 
 .boot-screen .boot-content {
+	position: relative;
 	width: 100%;
 	display: flex;
 	flex-direction: column;
@@ -1712,22 +1756,34 @@ h2 span {
 	padding: 30px;
 }
 
-.boot-screen[data-phase="exiting"] {
-	animation: boot-exit-opacity 320ms cubic-bezier(.2, .8, .2, 1) both;
+.boot-screen[data-phase="exiting"]::before {
+	animation: boot-exit-opacity 300ms ease-in both;
 }
 
 .boot-screen[data-phase="exiting"] .boot-content {
-	animation: boot-exit-scale 320ms cubic-bezier(.2, .8, .2, 1) both;
+	animation: boot-exit 350ms ease-in both;
 }
 
 @keyframes boot-exit-opacity {
-	from { opacity: 1; }
-	to { opacity: 0; }
+	from {
+		opacity: 1;
+	}
+
+	to {
+		opacity: 0;
+	}
 }
 
-@keyframes boot-exit-scale {
-	from { transform: scale(1); }
-	to { transform: scale(2); }
+@keyframes boot-exit {
+	from {
+		transform: scale(1);
+		opacity: 1;
+	}
+
+	to {
+		transform: scale(3);
+		opacity: 0;
+	}
 }
 
 .boot-brand {
@@ -1761,6 +1817,10 @@ h2 span {
 .boot-marker {
 	flex: 0 0 3ch;
 	white-space: pre;
+}
+
+.boot-cursor {
+	animation: blink 1s steps(2, end) infinite;
 }
 
 .boot-screen .boot-line.active,
@@ -1967,6 +2027,7 @@ h2 span {
 	.dialog {
 		top: 8%;
 		padding: 19px;
+		border-radius: 4px !important;
 		max-height: 85dvh;
 	}
 
@@ -2045,7 +2106,6 @@ h2 span {
 	}
 }
 
-/* Core task composition and inspection keep the same compact terminal rhythm. */
 .task-fields {
 	padding: 0;
 	border: 0;
@@ -2168,7 +2228,6 @@ h2 span {
 	}
 }
 
-/* GitHub is context, with the same dense workspace rhythm. */
 .github-row {
 	width: 100%;
 	display: flex;
@@ -2277,7 +2336,6 @@ h2 span {
 	}
 }
 
-/* Contact uses escaped text and a compact list/detail workspace. */
 .mint {
 	color: var(--accent);
 }
@@ -2567,7 +2625,6 @@ h2 span {
 	}
 }
 
-/* Workspace density and source panels. */
 :root {
 	--space-1: 4px;
 	--space-2: 8px;
@@ -2616,7 +2673,7 @@ h2 span {
 	font-size: 11px;
 }
 
-.task-meta:has(.task-dates:empty):not(:has(.inline-icon)):not(:has(svg)) {
+.task-meta:has(.task-dates:empty):not(:has(.task-context)):not(:has(.inline-icon)):not(:has(svg)) {
 	display: none;
 }
 
@@ -3217,11 +3274,9 @@ h2 span {
 	.inbox-inspector:has(.contact-detail) {
 		position: fixed;
 		inset: calc(52px + env(safe-area-inset-top)) 0 0;
-		margin: 0;
 		padding: 16px 20px calc(20px + env(safe-area-inset-bottom));
 		background: var(--bg);
 		z-index: 21;
-		overflow-y: auto;
 	}
 
 	.inbox-inspector>.annotation {
@@ -3366,6 +3421,7 @@ h2 span {
 .mutation-toast {
 	display: flex;
 	align-items: center;
+	justify-content: space-between;
 	gap: 12px;
 	background: var(--surface);
 	color: var(--ink);
@@ -3386,7 +3442,6 @@ h2 span {
 	opacity: .8;
 }
 
-/* Terminal-first visual language: syntax, alignment and focus carry hierarchy. */
 :root {
 	--bg: #f5f4ef;
 	--sidebar: #eeede7;
@@ -3963,7 +4018,8 @@ h1 {
 }
 
 .dialog {
-	border-radius: 4px;
+	border-bottom-left-radius: 6px;
+	border-top-left-radius: 6px;
 }
 
 .dialog-overlay {
@@ -4066,7 +4122,6 @@ textarea,
 }
 
 @media (max-width: 760px) {
-	/* The rail reserves a constant column; only the sidebar grows over the workspace. */
 	.app-shell {
 		transition: none;
 	}
@@ -4092,9 +4147,9 @@ textarea,
 		display: block;
 		position: fixed;
 		inset: 0;
+		background: rgba(0, 0, 0, .5);
 		z-index: 29;
 		padding: 0;
-		background: transparent;
 		cursor: default;
 	}
 
@@ -4172,7 +4227,6 @@ textarea,
 	}
 
 	.workspace-header {
-		/* Offset this surface alone: sidebar clearance and document scrolling stay independent. */
 		height: calc(52px + env(safe-area-inset-top) + var(--top-glass-clearance) + 5px);
 		padding-top: calc(env(safe-area-inset-top) + var(--top-glass-clearance) + 5px);
 		padding-left: 8px;
@@ -4229,3 +4283,98 @@ textarea,
 		overflow-wrap: anywhere;
 	}
 }
+
+.meta-project {
+	--chip-ink: var(--project-ink);
+	--chip-bg: var(--project-bg);
+	--chip-border: var(--project-border);
+}
+
+.meta-area {
+	--chip-ink: var(--area-ink);
+	--chip-bg: var(--area-bg);
+	--chip-border: var(--area-border);
+}
+
+.meta-start {
+	--chip-ink: var(--start-ink);
+	--chip-bg: var(--start-bg);
+	--chip-border: var(--start-border);
+}
+
+.meta-end {
+	--chip-ink: var(--end-ink);
+	--chip-bg: var(--end-bg);
+	--chip-border: var(--end-border);
+}
+
+.meta-chip:is(.meta-project, .meta-area, .meta-start, .meta-end) {
+	display: inline-block;
+	max-width: 100%;
+	min-width: 0;
+	color: var(--chip-ink);
+	white-space: normal;
+	overflow-wrap: anywhere;
+}
+
+.task-meta .task-context {
+	display: inline-flex;
+	gap: 5px;
+}
+
+.date-separator {
+	color: var(--secondary);
+}
+
+.task-overdue :is(.meta-start, .meta-end) {
+	--chip-ink: var(--danger);
+	--chip-bg: color-mix(in srgb, var(--danger) 8%, var(--bg));
+	--chip-border: color-mix(in srgb, var(--danger) 30%, var(--bg));
+}
+
+.navigation .nav-row .nav-symbol.meta-chip {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	color: var(--chip-ink);
+}
+
+.detail-path {
+	flex-wrap: wrap;
+}
+
+.heading-context {
+	font-size: 12px;
+	vertical-align: middle;
+}
+
+.terminal-property>span.meta-chip:first-child {
+	justify-self: start;
+	color: var(--chip-ink);
+}
+
+.property-project select {
+	color: var(--project-ink);
+}
+
+.property-area select {
+	color: var(--area-ink);
+}
+
+.terminal-property.property-start input,
+.property-start .localized-date>span {
+	color: var(--start-ink);
+}
+
+.terminal-property.property-end input,
+.property-end .localized-date>span {
+	color: var(--end-ink);
+}
+
+/* Only manual refresh arrivals receive this class. */
+.task-arrival { animation: task-arrive 300ms ease-out both; }
+@keyframes task-arrive { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+.completion-toasts { position: fixed; z-index: 160; bottom: calc(1rem + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); display: grid; gap: .5rem; width: min(30rem, calc(100vw - 2rem)); }
+.completion-toasts:empty { display: none; }
+@media (prefers-reduced-motion: reduce) { .task-arrival { animation: none; } }

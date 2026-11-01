@@ -37,7 +37,7 @@ test("Religion remains distinct across areas, counts, capture, direct URLs and b
   await expect(page.locator(".capture-preview")).toContainText("@Präsentationen");
   await expect(page.locator(".capture-preview")).toContainText("$Religion");
   await page.getByRole("button", { name: "Create task", exact: true }).click();
-  await expect(page.locator(".creation-result")).toContainText("Created in Notion");
+  await expect(page.locator(".creation-result")).toContainText("Synced to Notion");
   expect(state.creates[0].task).toMatchObject({ areaId: "presentations", projectId: "religion" });
   await page.getByRole("button", { name: "Done", exact: true }).click();
   await page.goBack();

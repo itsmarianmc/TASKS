@@ -69,12 +69,13 @@ self.addEventListener("fetch", event => {
 self.addEventListener("message", event => {
   if (event.data?.type === "push-capability") event.ports?.[0]?.postMessage({ pushVersion: 1 });
 });
+const REMINDER_COPY = /*__TAESKS_REMINDER_COPY__*/ { title: "TÆSKS / reminder", body: "A reminder is due. Open TÆSKS." };
 self.addEventListener("push", event => {
   event.waitUntil((async () => {
     let payload;
     try { payload = event.data?.json(); } catch { return; }
     if (payload?.type !== "reminder" || typeof payload.taskId !== "string" || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(payload.taskId) || typeof payload.tag !== "string" || !/^taesks-[A-Za-z0-9_-]{43}$/.test(payload.tag) || typeof payload.reminderAt !== "string" || !Number.isFinite(Date.parse(payload.reminderAt))) return;
-    await self.registration.showNotification("TÆSKS / reminder", { body: "A reminder is due. Open TÆSKS.", tag: payload.tag, renotify: false, icon: "/icons/icon-192.png", data: { taskId: payload.taskId } });
+    await self.registration.showNotification(REMINDER_COPY.title, { body: REMINDER_COPY.body, tag: payload.tag, renotify: false, icon: "/icons/icon-192.png", data: { taskId: payload.taskId } });
   })());
 });
 self.addEventListener("notificationclick", event => {

@@ -4,6 +4,7 @@ import { initialSnapshot } from "./startup.fixture";
 
 test("maximum-length task titles wrap in the drawer without horizontal scrolling", async ({ page }) => {
   const state = await workspace(page, false, false, false, false);
+  state.local.preferences.sidebarCollapsed = true;
   const title = "UnbrokenTask".repeat(166);
   state.graph.tasks.find(task => task.id === "now")!.title = title;
   await page.setViewportSize({ width: 320, height: 844 });

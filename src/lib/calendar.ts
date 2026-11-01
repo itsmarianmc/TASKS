@@ -3,9 +3,18 @@ import type { ISODate } from "./types";
 /** Calendar dates never pass through the browser's local timezone. */
 export function isoCalendarDate(year: number, month: number, day: number): ISODate | null {
   if (![year, month, day].every(Number.isInteger) || year < 100 || year > 9999) return null;
-  const date = new Date(Date.UTC(year, month - 1, day));
-  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
-  return date.toISOString().slice(0, 10);
+  if (month < 1 || month > 12) return null;
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (day < 1 || day > days[month - 1]) return null;
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+/** undefined is an editable invalid/partial draft, null is an intentional clear. */
+export function validatedDateDraft(text: string, badInput = false): ISODate | null | undefined {
+  if (badInput) return undefined;
+  if (!text) return null;
+  return isCalendarDate(text) ? text : undefined;
 }
 
 export function isCalendarDate(value: string): boolean {

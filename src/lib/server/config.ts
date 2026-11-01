@@ -10,3 +10,8 @@ export function publicConfig(): PublicConfig {
   catch { throw new Error("APP_TIMEZONE must be a valid IANA timezone."); }
   return { timezone, maxUploadBytes: MAX_UPLOAD_BYTES, appName: "TÆSKS", aiFallback: geminiStatus() };
 }
+
+export async function localizedConfig(): Promise<PublicConfig> {
+  const { configuredCatalogs } = await import("./catalogs");
+  return { ...publicConfig(), catalogs: await configuredCatalogs() };
+}

@@ -21,7 +21,7 @@ test("clear tasks never call AI, including while typing and creating", async ({ 
   const dialog = page.getByRole("dialog", { name: "Quick add", exact: true });
   await expect(dialog.getByRole("button", { name: "Understand input" })).toHaveCount(0);
   await dialog.getByRole("button", { name: "Create task", exact: true }).click();
-  await expect(dialog).toContainText("Created in Notion");
+  await expect(dialog).toContainText("Synced to Notion");
   expect(calls).toBe(0); expect(state.creates).toHaveLength(1);
 });
 test("AI runs once on explicit action, then waits for confirmation before creating", async ({ page }) => {
@@ -43,7 +43,7 @@ test("AI runs once on explicit action, then waits for confirmation before creati
   await expect(dialog.locator(".preview-title")).toHaveText("Finish presentation");
   expect(state.creates).toHaveLength(0); await expect(dialog).not.toContainText("Gemini");
   await dialog.getByRole("button", { name: "Create task", exact: true }).click();
-  await expect(dialog).toContainText("Created in Notion"); expect(state.creates).toHaveLength(1); expect(calls).toBe(1);
+  await expect(dialog).toContainText("Synced to Notion"); expect(state.creates).toHaveLength(1); expect(calls).toBe(1);
 });
 test("failed inference retains deterministic fields and manual completion", async ({ page }) => {
   const state = await enabledWorkspace(page); let calls = 0;
@@ -59,7 +59,7 @@ test("failed inference retains deterministic fields and manual completion", asyn
   await dialog.getByLabel("Task project", { exact: true }).selectOption("english");
   await dialog.getByRole("button", { name: "Use edited fields" }).click();
   await dialog.getByRole("button", { name: "Create task", exact: true }).click();
-  await expect(dialog).toContainText("Created in Notion"); expect(state.creates).toHaveLength(1); expect(calls).toBe(1);
+  await expect(dialog).toContainText("Synced to Notion"); expect(state.creates).toHaveLength(1); expect(calls).toBe(1);
 });
 test("editing during a request ignores stale results and permits a new parse", async ({ page }) => {
   const state = await enabledWorkspace(page);

@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 1,
+  "lang": "de",
+  "name": "German",
+  "locName": "Deutsch",
+  "phrases": {
+    "weekStart": 1,
+    "relativeDays": {
+      "today": [
+        "heute"
+      ],
+      "tomorrow": [
+        "morgen"
+      ],
+      "dayAfterTomorrow": [
+        "übermorgen",
+        "uebermorgen"
+      ],
+      "yesterday": [
+        "gestern"
+      ],
+      "dayBeforeYesterday": [
+        "vorgestern"
+      ]
+    },
+    "nextWeek": [
+      "nächste Woche",
+      "naechste Woche"
+    ],
+    "weekAfterNext": [
+      "übernächste Woche",
+      "über nächste Woche",
+      "uebernaechste Woche",
+      "ueber naechste Woche"
+    ],
+    "nextWeekend": [
+      "nächstes Wochenende",
+      "naechstes Wochenende"
+    ],
+    "weekendAfterNext": [
+      "übernächstes Wochenende",
+      "über nächstes Wochenende",
+      "uebernaechstes Wochenende",
+      "ueber naechstes Wochenende"
+    ],
+    "weekdays": {
+      "sunday": [
+        "sonntag"
+      ],
+      "monday": [
+        "montag"
+      ],
+      "tuesday": [
+        "dienstag"
+      ],
+      "wednesday": [
+        "mittwoch"
+      ],
+      "thursday": [
+        "donnerstag"
+      ],
+      "friday": [
+        "freitag"
+      ],
+      "saturday": [
+        "samstag"
+      ]
+    },
+    "next": [
+      "nächste",
+      "nächsten",
+      "nächster",
+      "nächstes",
+      "nächstem",
+      "naechste",
+      "naechsten",
+      "naechster",
+      "naechstes",
+      "naechstem"
+    ],
+    "afterNext": [
+      "übernächste",
+      "übernächsten",
+      "übernächster",
+      "übernächstes",
+      "übernächstem",
+      "über nächste",
+      "über nächsten",
+      "über nächster",
+      "über nächstes",
+      "uebernaechste",
+      "uebernaechsten",
+      "uebernaechster",
+      "uebernaechstes",
+      "uebernaechstem",
+      "ueber naechste",
+      "ueber naechsten",
+      "ueber naechster",
+      "ueber naechstes"
+    ],
+    "durations": {
+      "day": [
+        "tag",
+        "tage",
+        "tagen"
+      ],
+      "week": [
+        "woche",
+        "wochen"
+      ],
+      "month": [
+        "monat",
+        "monate",
+        "monaten"
+      ],
+      "year": [
+        "jahr",
+        "jahre",
+        "jahren"
+      ],
+      "prefixes": [
+        "in"
+      ],
+      "numbers": {
+        "ein": 1,
+        "zwei": 2,
+        "drei": 3,
+        "vier": 4,
+        "fünf": 5,
+        "sechs": 6,
+        "sieben": 7,
+        "acht": 8,
+        "neun": 9,
+        "zehn": 10,
+        "eine": 1,
+        "einen": 1,
+        "fuenf": 5
+      }
+    }
+  }
+}

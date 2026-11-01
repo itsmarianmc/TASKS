@@ -57,7 +57,8 @@ function entityMentions(text: string, candidates: Candidate[], marker: "#" | "@"
 /** Browser-safe. Never calls a service, invents relation IDs, or changes the graph. */
 export function parseQuickAdd(input: string, graph: Graph, aliases: ParserAlias[] = [], context: ParseContext = {}, knownTags: Tag[] = []): ParseResult {
   const warnings: string[] = [];
-  const text = input.normalize("NFC").replace(/\s+/g, " ").trim();
+  const normalize = context.literalQuotedText !== false ? cleanOutsideQuotes : (value: string) => value.replace(/\s+/g, " ").replace(/\s+([,;])/g, "$1").trim();
+  const text = normalize(input.normalize("NFC"));
   let today = context.today;
   if (!today) {
     try { today = calendarToday(context.timezone ?? "Europe/Berlin"); }
@@ -68,8 +69,10 @@ export function parseQuickAdd(input: string, graph: Graph, aliases: ParserAlias[
     warnings.push("Invalid reference date. Correct it before saving.");
   }
   if (text.length > 10000) return { input, title: text.slice(0, 2000), projectId: null, areaId: null, dates: { start: today, end: null }, tags: [], priority: "none", recurrenceRule: null, confidence: 0, warnings: ["Input exceeds 10,000 characters."], valid: false, needsResolution: true };
+  const literal = context.literalQuotedText !== false ? quotedSpans(text) : [];
+  const parsingText = maskSpans(text, literal);
   const spans: Span[] = [], tags: string[] = [];
-  for (const match of text.matchAll(/\[([^\[\]]*)\]/g)) {
+  for (const match of parsingText.matchAll(/\[([^\[\]]*)\]/g)) {
     const tag = match[1].trim();
     if (!tag || tag.length > 64) warnings.push("Tags must contain between 1 and 64 characters.");
     else {
@@ -80,7 +83,7 @@ export function parseQuickAdd(input: string, graph: Graph, aliases: ParserAlias[
   }
   if (tags.length > 50) warnings.push("A task supports at most 50 tags.");
   let recurrenceRule: RecurrenceRule | null = null;
-  for (const match of maskSpans(text, spans).matchAll(recurrencePattern)) {
+  for (const match of maskSpans(parsingText, spans).matchAll(recurrencePattern)) {
     const interval = match[1] ? recurrenceNumber(match[1]) : 1;
     const unit = normalizeParserText(match[2] ?? match[0]);
     const frequency = /week|woch/.test(unit) ? "week" : /month|monat/.test(unit) ? "month" : /year|jahr/.test(unit) ? "year" : "day";
@@ -91,7 +94,7 @@ export function parseQuickAdd(input: string, graph: Graph, aliases: ParserAlias[
   }
   let priority: Priority = "none";
   const priorityRank: Record<Priority, number> = { none: 0, low: 1, medium: 2, high: 3, urgent: 4 };
-  for (const match of maskSpans(text, spans).matchAll(/(?<!\S)(!{1,3})(?!\S)|(?<![\p{L}\p{N}])(?:high priority|low priority|medium priority|hohe priorität|niedrige priorität|mittlere priorität)(?![\p{L}\p{N}])|^(?:urgent|dringend)(?::|\s+)|(?<![\p{L}\p{N}])(?:urgent|dringend)$/giu)) {
+  for (const match of maskSpans(parsingText, spans).matchAll(/(?<!\S)(!{1,3})(?!\S)|(?<![\p{L}\p{N}])(?:high priority|low priority|medium priority|hohe priorität|niedrige priorität|mittlere priorität)(?![\p{L}\p{N}])|^(?:urgent|dringend)(?::|\s+)|(?<![\p{L}\p{N}])(?:urgent|dringend)$/giu)) {
     const normalized = normalizeParserText(match[0]);
     const parsed: Priority = match[1] ? (["none", "medium", "high", "urgent"] as const)[match[1].length] : /urgent|dringend/.test(normalized) ? "urgent" : /low|niedrige/.test(normalized) ? "low" : /medium|mittlere/.test(normalized) ? "medium" : "high";
     if (priority !== "none" && priority !== parsed) warnings.push("Several different priorities were found. Choose one.");
@@ -103,7 +106,7 @@ export function parseQuickAdd(input: string, graph: Graph, aliases: ParserAlias[
     const ids = new Set(entities.map(value => value.id));
     return [...entities.flatMap(value => [{ id: value.id, phrase: value.name }, ...(type === "area" && normalizeParserText(value.name) === "hausaufgaben" ? [{ id: value.id, phrase: "Hausaufgabe" }] : [])]), ...aliases.filter(value => value.entityType === type && ids.has(value.entityId)).map(value => ({ id: value.entityId, phrase: value.alias }))];
   };
-  const beforeDates = maskSpans(text, spans);
+  const beforeDates = maskSpans(parsingText, spans);
   const explicitProjects = entityMentions(beforeDates, candidateList("project"), "#", true).filter(value => value.explicit);
   const explicitAreas = entityMentions(beforeDates, candidateList("area"), "@", true).filter(value => value.explicit);
   const explicitMentions = [...explicitProjects, ...explicitAreas];
@@ -113,9 +116,9 @@ export function parseQuickAdd(input: string, graph: Graph, aliases: ParserAlias[
     warnings.push(`Couldn’t match “${match[0]}”. Choose a project or area.`);
     unknownTokens.push({ start: match.index, end: match.index + match[0].length });
   }
-  const dateResult = parseDates(maskSpans(text, [...spans, ...explicitMentions, ...unknownTokens]), today);
+  const dateResult = parseDates(maskSpans(parsingText, [...spans, ...explicitMentions, ...unknownTokens]), today, context.dateCatalog);
   spans.push(...dateResult.spans); warnings.push(...dateResult.warnings);
-  const working = maskSpans(text, [...spans, ...explicitMentions]);
+  const working = maskSpans(parsingText, [...spans, ...explicitMentions]);
   if (dateResult.spans.length && /\b(?:before|after|vor|nach)\s+\p{L}/iu.test(working)) warnings.push("Couldn't infer the full date phrase. Review the dates.");
   const projects = [...explicitProjects, ...entityMentions(working, candidateList("project"), "#", true)];
   const areas = [...explicitAreas, ...entityMentions(working, candidateList("area"), "@", true)];
@@ -154,8 +157,8 @@ export function parseQuickAdd(input: string, graph: Graph, aliases: ParserAlias[
   const withoutRelations = maskSpans(text, spans);
   // Bare subject words remain useful when removing all matches would leave an empty title.
   const bare = mentions.filter(value => !value.explicit && !value.clause);
-  const withoutBare = maskSpans(withoutRelations, bare).replace(/\s+/g, " ").trim();
-  const title = (withoutBare || withoutRelations.replace(/\s+/g, " ").trim()).replace(/\s+([,;])/g, "$1").trim();
+  const withoutBare = normalize(maskSpans(withoutRelations, bare));
+  const title = normalize(withoutBare || withoutRelations);
   if (!title) warnings.push("Enter a task title.");
   if (title.length > 2000) warnings.push("Task title exceeds 2,000 characters.");
   const fuzzyCount = mentions.filter(value => value.fuzzy).length;
@@ -164,4 +167,30 @@ export function parseQuickAdd(input: string, graph: Graph, aliases: ParserAlias[
   return { input, title, projectId, areaId, dates: dateResult.dates, tags, priority, recurrenceRule,
     confidence: valid ? Math.max(0.8, 1 - fuzzyCount * 0.08) : Math.max(0, 0.65 - uniqueWarnings.length * 0.12),
     warnings: uniqueWarnings, valid, needsResolution: !valid };
+}
+
+/** UTF-16 spans match RegExp indices. An unmatched opener protects the remainder. */
+export function quotedSpans(text: string): Span[] {
+  const spans: Span[] = [];
+  let start = -1, close = "";
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    if (start >= 0) {
+      if (char === close) { spans.push({ start, end: i + 1 }); start = -1; }
+    } else if (char === '"' || char === '„' || char === '“') {
+      start = i; close = char === '„' ? '“' : char === '“' ? '”' : '"';
+    }
+  }
+  if (start >= 0) spans.push({ start, end: text.length });
+  return spans;
+}
+
+function cleanOutsideQuotes(text: string): string {
+  let cursor = 0, result = "";
+  const clean = (value: string) => value.replace(/\s+/g, " ").replace(/\s+([,;])/g, "$1");
+  for (const span of quotedSpans(text)) {
+    result += clean(text.slice(cursor, span.start)) + text.slice(span.start, span.end);
+    cursor = span.end;
+  }
+  return (result + clean(text.slice(cursor))).trim();
 }

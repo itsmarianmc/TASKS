@@ -1,5 +1,7 @@
+import type { DateCatalog } from "./catalogs";
+import { compileDatePhrases } from "./date-phrases";
 import { en, de } from "chrono-node";
-import { addCalendarDays, isoCalendarDate } from "./calendar";
+import { addCalendarDays, isoCalendarDate, isCalendarDate } from "./calendar";
 import type { DateRange, ISODate } from "./types";
 
 export interface Span { start: number; end: number }
@@ -12,21 +14,11 @@ const month = "(?:jan(?:uary|uar)?|feb(?:ruary|ruar)?|mar(?:ch)?|märz|maerz|apr
 const weekday = "(?:mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)";
 const number = "(?:\\d+|one|two|three|four|five|six|seven|eight|nine|ten|ein(?:e|en)?|zwei|drei|vier|fünf|fuenf|sechs|sieben|acht|neun|zehn)";
 const unit = "(?:days?|weeks?|months?|years?|tag(?:e|en)?|wochen?|monat(?:e|en)?|jahr(?:e|en)?)";
-const afterNext = "(?:über|ueber)\\s*nächste[nrms]?|(?:über|ueber)\\s*naechste[nrms]?";
-const germanRelative = `(?:${afterNext})\\s+(?:${weekday}|woche|wochenende)`;
-const atom = `(?:${germanRelative}|\\d{4}-\\d{2}-\\d{2}|\\d{1,2}[./]\\d{1,2}(?:[./]\\d{4}|\\.)?|\\d{1,2}(?:st|nd|rd|th|\\.)?\\s+${month}\\.?(?:\\s+\\d{4})?|${month}\\.?\\s+\\d{1,2}(?:st|nd|rd|th)?(?:,?\\s+\\d{4})?|(?:next|this|nächste[nrms]?|naechste[nrms]?|diese[nrms]?)\\s+${weekday}|${weekday}|today|tomorrow|yesterday|heute|übermorgen|uebermorgen|morgen|gestern|in\\s+${number}\\s+${unit})`;
+const calendarAtom = `(?:\\d{4}-\\d{2}-\\d{2}|\\d{1,2}[./]\\d{1,2}(?:[./]\\d{4}|\\.)?|\\d{1,2}(?:st|nd|rd|th|\\.)?\\s+${month}\\.?(?:\\s+\\d{4})?|${month}\\.?\\s+\\d{1,2}(?:st|nd|rd|th)?(?:,?\\s+\\d{4})?|(?:next|this|nächste[nrms]?|naechste[nrms]?|diese[nrms]?)\\s+${weekday}|${weekday})`;
 
-function parseAtom(text: string, reference: ISODate, rangeEnd = false): ISODate | null {
-  const relative = new RegExp(`^(?:${afterNext})\\s+(${weekday}|woche|wochenende)$`, "iu").exec(text.normalize("NFC"));
-  if (relative) {
-    const target = relative[1].toLowerCase();
-    const day = new Date(`${reference}T12:00:00Z`).getUTCDay();
-    if (target === "woche") return addCalendarDays(reference, (8 - (day || 7)) + 7);
-    const weekdays = ["sonntag", "montag", "dienstag", "mittwoch", "donnerstag", "freitag", "samstag"];
-    const aliases = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
-    const desired = target === "wochenende" ? 6 : weekdays.indexOf(target) >= 0 ? weekdays.indexOf(target) : aliases.findIndex(name => target.startsWith(name));
-    return addCalendarDays(reference, ((desired - day + 7) % 7 || 7) + 7);
-  }
+function parseAtom(text: string, reference: ISODate, rangeEnd = false, phrases = compileDatePhrases(), anchor = reference): ISODate | null {
+  const relative = phrases.resolve(text, reference, anchor);
+  if (relative || phrases.recognizes(text)) return relative && isCalendarDate(relative) ? relative : null;
   const numeric = /^(\d{1,2})[./](\d{1,2})(?:[./](\d{4})|\.)?$/.exec(text);
   if (numeric) {
     const day = Number(numeric[1]), month = Number(numeric[2]);
@@ -59,12 +51,14 @@ function parseAtom(text: string, reference: ISODate, rangeEnd = false): ISODate 
 }
 
 /** Locale-specific Chrono parsing with strict European numeric pre-parsing. */
-export function parseDates(input: string, today: ISODate): { dates: DateRange; spans: Span[]; warnings: string[] } {
+export function parseDates(input: string, today: ISODate, catalog?: DateCatalog): { dates: DateRange; spans: Span[]; warnings: string[] } {
   const spans: Span[] = [], warnings: string[] = [];
   const values: DateRange[] = [];
+  const phrases = compileDatePhrases(catalog);
+  const atom = `(?:${phrases.source}|${calendarAtom})`;
   const range = new RegExp(`(?<![\\p{L}\\p{N}])(?:from|von|vom)\\s+(${atom})\\s+(?:to|until|bis)\\s+(${atom})(?:[.,;](?![\\p{L}\\p{N}]))?(?![\\p{L}\\p{N}./])`, "giu");
   for (const match of input.matchAll(range)) {
-    const start = parseAtom(match[1], today), end = parseAtom(match[2], start ?? today, true);
+    const start = parseAtom(match[1], today, false, phrases), end = parseAtom(match[2], start ?? today, true, phrases, today);
     spans.push({ start: match.index, end: match.index + match[0].length });
     if (!start || !end) warnings.push(`Invalid date range: “${match[0]}”.`);
     else if (end < start) warnings.push("Deadline must be on or after the start date.");
@@ -74,7 +68,7 @@ export function parseDates(input: string, today: ISODate): { dates: DateRange; s
   const single = new RegExp(`(?<![\\p{L}\\p{N}])(?:(?:until|by|before|on|bis|am)\\s+(?:(?:the|zum|zur)\\s+)?)?(${atom})(?:[.,;](?![\\p{L}\\p{N}]))?(?![\\p{L}\\p{N}./])`, "giu");
   for (const match of remaining.matchAll(single)) {
     spans.push({ start: match.index, end: match.index + match[0].length });
-    const end = parseAtom(match[1], today);
+    const end = parseAtom(match[1], today, false, phrases);
     if (!end) warnings.push(`Invalid date: “${match[1]}”.`);
     else if (end < today) warnings.push("Deadline is before today. Use an explicit range to set an earlier start.");
     else values.push({ start: today, end });

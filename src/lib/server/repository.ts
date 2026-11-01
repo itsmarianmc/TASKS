@@ -8,7 +8,7 @@ import type { LocalSnapshot, Preferences, NotionMapping, TaskMetadata, EntityRef
 import { taskReconcileSchema, type NotionGraphCacheSnapshot, type TaskReconcile } from "@/lib/notion-contracts";
 import { AppError } from "./http";
 
-export const defaultPreferences: Preferences = { theme: "system", sidebarCollapsed: false, lastView: "overview", notificationPermissionAsked: false, showCompletedTasks: true, hideProjectsWithoutCurrentTasks: false };
+export const defaultPreferences: Preferences = { theme: "system", sidebarCollapsed: false, lastView: "overview", notificationPermissionAsked: false, literalQuotedText: true, showCompletedTasks: true, hideProjectsWithoutCurrentTasks: false };
 const now = () => new Date().toISOString();
 export function createRepository(database: LocalDatabase = getDatabase()) {
   const { orm, sqlite } = database;

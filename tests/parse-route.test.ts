@@ -8,7 +8,7 @@ const graph = { areas: [], projects: [], tasks: [], syncedAt: null };
 beforeEach(() => {
   vi.stubEnv("APP_ORIGIN", ""); vi.stubEnv("APP_TIMEZONE", "Europe/Berlin");
   dependencies.readGraph.mockReset().mockResolvedValue({ graph });
-  dependencies.snapshot.mockReset().mockResolvedValue({ aliases: [], tags: [], notes: ["private"], drafts: [] });
+  dependencies.snapshot.mockReset().mockResolvedValue({ aliases: [], tags: [], notes: ["private"], drafts: [], preferences: {} });
   dependencies.parse.mockReset().mockResolvedValue({ result: { title: "Partial task", valid: false }, fallback: "unavailable" });
 });
 afterEach(() => vi.unstubAllEnvs());
@@ -20,8 +20,14 @@ describe("explicit parsing endpoint", () => {
     const response = await POST(request({ input: "Partial task", context: { areaId: "homework" } }));
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ fallback: "unavailable", result: { valid: false } });
-    expect(dependencies.parse).toHaveBeenCalledWith("Partial task", graph, [], { areaId: "homework", timezone: "Europe/Berlin" }, [], expect.any(AbortSignal));
+    expect(dependencies.parse).toHaveBeenCalledWith("Partial task", graph, [], { areaId: "homework", timezone: "Europe/Berlin", literalQuotedText: true, dateCatalog: undefined }, [], expect.any(AbortSignal));
     expect(response.headers.get("cache-control")).toBe("no-store");
+  });
+  it("uses saved quotation opt-out rather than client-supplied parser preferences", async () => {
+    dependencies.snapshot.mockResolvedValue({ aliases: [], tags: [], preferences: { literalQuotedText: false, language: "de" } });
+    expect((await POST(request({ input: 'Read "tomorrow"' }))).status).toBe(200);
+    expect(dependencies.parse.mock.calls[0][3]).toMatchObject({ literalQuotedText: false });
+    expect((await POST(request({ input: "Read", context: { literalQuotedText: true } }))).status).toBe(400);
   });
   it("blocks cross-origin calls before reading app data or invoking a provider", async () => {
     expect((await POST(request({ input: "Task" }, "https://evil.example"))).status).toBe(403);

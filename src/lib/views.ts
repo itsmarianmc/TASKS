@@ -117,8 +117,8 @@ export function taskSections(view: ViewId, graph: Graph, local: LocalSnapshot, t
   } else sections = [{ label: "tasks", items: tasks }];
   return [...sections, completed].filter(section => section.items.length);
 }
-export function sectionTitle(label: string): string {
-  if (/^\d{4}-\d{2}(-\d{2})?$/.test(label)) return new Intl.DateTimeFormat("en-GB", label.length === 7 ? { month: "long", year: "numeric", timeZone: "UTC" } : { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${label.length === 7 ? `${label}-01` : label}T12:00:00Z`)).toLowerCase();
+export function sectionTitle(label: string, locale = "en-GB"): string {
+  if (/^\d{4}-\d{2}(-\d{2})?$/.test(label)) return new Intl.DateTimeFormat(locale, label.length === 7 ? { month: "long", year: "numeric", timeZone: "UTC" } : { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${label.length === 7 ? `${label}-01` : label}T12:00:00Z`)).toLowerCase();
   return label === "active" ? "tasks" : label;
 }
 export function viewTaskCount(view: ViewId, graph: Graph, local: LocalSnapshot, today: string): number {
@@ -127,22 +127,22 @@ export function viewTaskCount(view: ViewId, graph: Graph, local: LocalSnapshot, 
   const entity = view.startsWith("area:") || view.startsWith("project:") || view.startsWith("tag:");
   return tasks.filter(task => !task.completed && (!entity || !local.metadata.find(item => item.taskId === task.id)?.someday)).length;
 }
-export function viewTitle(view: ViewId, graph: Graph, local: LocalSnapshot) {
+export function viewTitle(view: ViewId, graph: Graph, local: LocalSnapshot, translate: (text: string) => string = value => value) {
   return (
-    mainViews.find((item) => item.id === view)?.label ??
+    (mainViews.find((item) => item.id === view)?.label ? translate(mainViews.find((item) => item.id === view)!.label) : undefined) ??
     (view.startsWith("area:")
       ? graph.areas.find((area) => area.id === view.slice(5))?.name
       : view.startsWith("project:")
         ? graph.projects.find((project) => project.id === projectContext(view)?.projectId)?.name
         : view.startsWith("tag:")
-          ? `[${local.tags.find((tag) => tag.id === view.slice(4))?.name ?? "tag"}]`
+          ? `[${local.tags.find((tag) => tag.id === view.slice(4))?.name ?? translate("tag")}]`
           : view.startsWith("filter:")
             ? local.filters.find((filter) => filter.id === view.slice(7))?.name
             : view === "github"
-              ? "GitHub"
+              ? translate("GitHub")
               : view === "contact"
-                ? "Contact"
-                : "Settings") ??
-    "List unavailable"
+                ? translate("Contact")
+                : translate("Settings")) ??
+    translate("List unavailable")
   );
 }

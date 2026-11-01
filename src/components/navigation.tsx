@@ -1,4 +1,5 @@
 "use client";
+import { useTranslation } from "./localization";
 import { useState } from "react";
 import type { Graph, LocalSnapshot } from "@/lib/types";
 import { mainViews, viewTaskCount, viewTitle, type ViewId } from "@/lib/views";
@@ -45,6 +46,7 @@ export function Navigation({
   githubCount?: number;
   contactCount?: number;
 }) {
+  const { t, text: tx } = useTranslation();
   const tree = sidebarAreas(graph, local, today, view);
   const sidebarCollapsed = local.preferences.sidebarCollapsed;
   // Detail views retain their context in the workspace; Overview represents them in the rail.
@@ -71,11 +73,11 @@ export function Navigation({
       data-list-row
       className={`nav-row ${primaryView === id ? "active" : ""} ${indent ? "indented" : ""}`}
       aria-label={sidebarCollapsed ? label : undefined}
-      title={primaryView === id && view !== id ? `${label} · ${viewTitle(view, graph, local)}` : label}
+      title={primaryView === id && view !== id ? t("ui.value_value_9482534", { p0: label, p1: viewTitle(view, graph, local, tx) }) : label}
       aria-current={view === id ? "page" : primaryView === id ? "location" : undefined}
       onClick={() => onNavigate(id)}
     >
-      <span className="nav-symbol" aria-hidden="true">{symbol}</span>
+      <span className={`nav-symbol${id.startsWith("area:") ? " meta-chip meta-area" : id.startsWith("project:") ? " meta-chip meta-project" : ""}`} aria-hidden="true">{symbol}</span>
       <span className="nav-label">{label}</span>
       {countValue !== undefined && (
         <span className="nav-count">{countValue}</span>
@@ -83,12 +85,12 @@ export function Navigation({
     </button>
   );
   return (
-    <nav className="navigation" aria-label="Lists" onKeyDown={moveListFocus}>
+    <nav className="navigation" aria-label={t("ui.lists")} onKeyDown={moveListFocus}>
       <div className="sidebar-brand">
         <button
           className="icon-button"
-          aria-label="New task"
-          title="New task"
+          aria-label={t("ui.new_task")}
+          title={t("ui.new_task")}
           onClick={onCapture}
         >
           <SidebarIcon name="plus" size={17} />
@@ -96,15 +98,15 @@ export function Navigation({
         <button
           className="brand"
           onClick={() => onNavigate("overview")}
-          aria-label="TÆSKS overview"
+          aria-label={t("ui.t_sks_overview")}
         >
           T<span className="brand-mark"><span>[</span><i>Æ</i><span>]</span></span>SKS<span className="brand-period">.</span>
         </button>
         <button
           type="button"
           className="icon-button sidebar-brand-toggle"
-          aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-label={sidebarCollapsed ? t("ui.expand_sidebar") : t("ui.collapse_sidebar")}
+          title={sidebarCollapsed ? t("ui.expand_sidebar") : t("ui.collapse_sidebar")}
           aria-expanded={!sidebarCollapsed}
           aria-controls="sidebar-lists"
           onClick={onToggleSidebar}
@@ -112,17 +114,17 @@ export function Navigation({
           {sidebarCollapsed ? "[>]" : "[<]"}
         </button>
       </div>
-      <button className="search-trigger" aria-label="Search" title="Search" onClick={onSearch}>
+      <button className="search-trigger" aria-label={t("ui.search")} title={t("ui.search")} onClick={onSearch}>
         <SidebarIcon name="magnifying-glass" size={13} />
-        <span>Search</span>
-        <kbd>⌘ K</kbd>
+        <span>{t("ui.search")}</span>
+        <kbd>{t("ui.k_f1f00b4")}</kbd>
       </button>
       <div className="nav-scroll" id="sidebar-lists">
         <div className="nav-group">
           {mainViews.map((item) =>
             row(
               item.id,
-              item.label,
+              tx(item.label),
               <SidebarIcon name={primaryIcons[item.id]} />,
               item.id === "overview" ? undefined : count(item.id),
             ),
@@ -135,7 +137,7 @@ export function Navigation({
             onClick={() => toggle("areas")}
           >
             <SidebarIcon name="chevron-right" expanded={!collapsed.has("areas")} size={11} />
-            Areas <span>{tree.length}</span>
+            {t("ui.areas_14ce09a")}{" "}<span>{tree.length}</span>
           </button>
           {!collapsed.has("areas") &&
             (graph.areas.length ? (
@@ -144,7 +146,7 @@ export function Navigation({
                   <div className="area-tree-header">
                     <button
                       className="tree-toggle"
-                      aria-label={`${collapsed.has(area.id) ? "Expand" : "Collapse"} ${area.name}`}
+                      aria-label={t("ui.value_value_99ecfde", { p0: collapsed.has(area.id) ? t("ui.expand") : t("ui.collapse"), p1: area.name })}
                       aria-expanded={!collapsed.has(area.id)}
                       onClick={() => toggle(area.id)}
                     >
@@ -175,7 +177,7 @@ export function Navigation({
                 className="nav-empty"
                 onClick={() => onNavigate("settings")}
               >
-                {"// connect Notion "}<SidebarIcon name="arrow-right" />
+                {t("ui.connect_notion")}<SidebarIcon name="arrow-right" />
               </button>
             ))}
         </section>
@@ -186,7 +188,7 @@ export function Navigation({
             onClick={() => toggle("tags")}
           >
             <SidebarIcon name="chevron-right" expanded={!collapsed.has("tags")} size={11} />
-            Tags <span>{local.tags.length}</span>
+            {t("ui.tags_848eed0")}{" "}<span>{local.tags.length}</span>
           </button>
           {!collapsed.has("tags") &&
             (local.tags.length ? (
@@ -199,7 +201,7 @@ export function Navigation({
                 ),
               )
             ) : (
-              <p className="nav-empty">{"// no tags yet"}</p>
+              <p className="nav-empty">{t("ui.no_tags_yet")}</p>
             ))}
         </section>
         <section className="nav-group">
@@ -209,7 +211,7 @@ export function Navigation({
             onClick={() => toggle("filters")}
           >
             <SidebarIcon name="chevron-right" expanded={!collapsed.has("filters")} size={11} />
-            Filters <span>{local.filters.length}</span>
+            {t("ui.filters_96e5782")}{" "}<span>{local.filters.length}</span>
           </button>
           {!collapsed.has("filters") &&
             (local.filters.length ? (
@@ -226,21 +228,20 @@ export function Navigation({
                 className="nav-empty"
                 onClick={() => onNavigate("settings")}
               >
-                <SidebarIcon name="plus" /> saved filter
-              </button>
+                <SidebarIcon name="plus" /> {" "}{t("ui.saved_filter")}</button>
             ))}
         </section>
         <section className="nav-group">
-          <p className="nav-section-title">External</p>
+          <p className="nav-section-title">{t("ui.external")}</p>
           {row("github", "GitHub", <SidebarIcon name="github" brands size={13} />, githubCount)}
-          {row("contact", "Contact", <SidebarIcon name="envelope" size={13} />, contactCount)}
+          {row("contact", tx("Contact"), <SidebarIcon name="envelope" size={13} />, contactCount)}
         </section>
       </div>
       <div className="sidebar-footer">
-        {row("settings", "Settings & diagnostics", <SidebarIcon name="sliders" size={13} />)}
+        {row("settings", tx("Settings & diagnostics"), <SidebarIcon name="sliders" size={13} />)}
         <div className="sidebar-footnote">
-          <button className="text-button shortcut-help" aria-label="Shortcuts" title="Shortcuts" onClick={onHelp}>
-            <SidebarIcon name="keyboard" size={12} /><span className="nav-label">Shortcuts</span>
+          <button className="text-button shortcut-help" aria-label={t("ui.shortcuts")} title={t("ui.shortcuts")} onClick={onHelp}>
+            <SidebarIcon name="keyboard" size={12} /><span className="nav-label">{t("ui.shortcuts")}</span>
           </button>
         </div>
       </div>

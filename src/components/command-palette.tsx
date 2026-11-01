@@ -1,5 +1,6 @@
 "use client";
-import { useState, useEffect, useLayoutEffect, type CSSProperties } from "react";
+import { useTranslation } from "./localization";
+import { useState, useEffect, useLayoutEffect, type CSSProperties, type ReactNode } from "react";
 import { projectView } from "@/lib/view-context";
 import type { EntityRef, Graph, LocalSnapshot, Task } from "@/lib/types";
 import { mainViews, type ViewId } from "@/lib/views";
@@ -41,6 +42,7 @@ export function CommandPalette({
   onLocalEntity?: (entity: EntityRef) => void;
   onContactOpen?: (item: ContactItem) => void;
 }) {
+  const { t, text: tx } = useTranslation();
   const [search, setSearch] = useState("");
   const [contactSearch, setContactSearch] = useState("");
   const [viewport, setViewport] = useState<{ height: number; top: number } | null>(null);
@@ -62,30 +64,32 @@ export function CommandPalette({
     else onNavigate(`${type}:${id}`);
   }
   function ownerName(type: EntityRef["type"], id: string) { return type === "task" ? graph.tasks.find(task => task.id === id)?.title : type === "project" ? graph.projects.find(project => project.id === id)?.name : graph.areas.find(area => area.id === id)?.name; }
-  const commands: { label: string; type: string; action: () => void; keywords?: string }[] = [
-    { label: "New task / capture", type: "command", action: onCapture },
+  const commands: { label: string; display?: ReactNode; type: string; action: () => void; keywords?: string }[] = [
+    { label: t("ui.new_task_capture"), type: "command", action: onCapture },
     {
-      label: "Settings & diagnostics",
+      label: t("ui.settings_diagnostics"),
       type: "command",
       action: () => onNavigate("settings"),
     },
-    { label: "Toggle theme", type: "command", action: onTheme },
-    { label: "Refresh data", type: "command", action: onRefresh },
+    { label: t("ui.toggle_theme"), type: "command", action: onTheme },
+    { label: t("ui.refresh_data"), type: "command", action: onRefresh },
     ...mainViews.map((view) => ({
-      label: view.label,
+      label: tx(view.label),
       type: "navigation",
       keywords: `Go to ${view.label} list`,
       action: () => onNavigate(view.id),
     })),
-    { label: "GitHub", type: "navigation", keywords: "source", action: () => onNavigate("github") },
-    { label: "Contact", type: "navigation", keywords: "source", action: () => onNavigate("contact") },
+    { label: t("ui.github_5442e2b"), type: "navigation", keywords: "source", action: () => onNavigate("github") },
+    { label: t("ui.contact_b37456c"), type: "navigation", keywords: "source", action: () => onNavigate("contact") },
     ...graph.areas.map((area) => ({
       label: area.name,
+      display: <span className="meta-chip meta-area">{area.name}</span>,
       type: "area",
       action: () => onNavigate(`area:${area.id}`),
     })),
     ...graph.projects.flatMap((project) => project.areaIds.map(areaId => ({
-      label: `${graph.areas.find(area => area.id === areaId)?.name ?? "Area"} / ${project.name}`,
+      label: t("ui.value_value_bd8565b", { p0: graph.areas.find(area => area.id === areaId)?.name ?? t("ui.area_2745deb"), p1: project.name }),
+      display: <><span className="meta-chip meta-area">{graph.areas.find(area => area.id === areaId)?.name ?? t("ui.area_2745deb")}</span>{" / "}<span className="meta-chip meta-project">{project.name}</span></>,
       type: "project",
       action: () => onNavigate(projectView(project.id, areaId)),
     }))),
@@ -95,7 +99,7 @@ export function CommandPalette({
       action: () => onNavigate(`filter:${filter.id}`),
     })),
     ...graph.tasks.map((task) => ({
-      label: `${task.completed ? "[✓]" : "[ ]"} ${task.title}`,
+      label: t("ui.value_value_99ecfde", { p0: task.completed ? "[✓]" : "[ ]", p1: task.title }),
       type: "task",
       action: () => onTask(task),
     })),
@@ -104,11 +108,11 @@ export function CommandPalette({
       type: "draft",
       action: () => onDraft ? onDraft(draft.id) : onNavigate("inbox"),
     })),
-    ...local.tags.map(tag => ({ label: `[${tag.name}]`, type: "tag", action: () => onNavigate(`tag:${tag.id}`) })),
-    ...local.notes.map(note => ({ label: `${ownerName(note.entityType, note.entityId) ?? `${note.entityType}:${note.entityId}`} / ${note.content.split("\n").find(line => line.trim())?.slice(0, 100) ?? "note"}`, keywords: note.content, type: "note", action: () => openOwner(note.entityType, note.entityId) })),
-    ...local.attachments.map(file => ({ label: `${file.name} / ${ownerName(file.entityType, file.entityId) ?? `${file.entityType}:${file.entityId}`}`, keywords: `${file.mimeType} ${file.size}`, type: "file", action: () => openOwner(file.entityType, file.entityId) })),
+    ...local.tags.map(tag => ({ label: t("ui.value_45e9314", { p0: tag.name }), type: "tag", action: () => onNavigate(`tag:${tag.id}`) })),
+    ...local.notes.map(note => ({ label: t("ui.value_value_bd8565b", { p0: ownerName(note.entityType, note.entityId) ?? t("ui.value_value", { p0: note.entityType, p1: note.entityId }), p1: note.content.split("\n").find(line => line.trim())?.slice(0, 100) ?? t("ui.note") }), keywords: note.content, type: "note", action: () => openOwner(note.entityType, note.entityId) })),
+    ...local.attachments.map(file => ({ label: t("ui.value_value_bd8565b", { p0: file.name, p1: ownerName(file.entityType, file.entityId) ?? t("ui.value_value", { p0: file.entityType, p1: file.entityId }) }), keywords: `${file.mimeType} ${file.size}`, type: "file", action: () => openOwner(file.entityType, file.entityId) })),
     ...externalItems.map(item => ({ label: item.label, keywords: item.keywords, type: item.kind, action: item.onOpen })),
-    ...(remoteContact.data?.items ?? []).filter(item => !externalItems.some(external => external.kind === "contact" && external.id === `contact:${item.id}`)).map(item => ({ label: `${item.name || item.email} · ${item.message.split(/\r?\n/)[0]}`, keywords: `${item.email} ${item.site_origin} ${item.message}`, type: "contact", action: () => onContactOpen?.(item) })),
+    ...(remoteContact.data?.items ?? []).filter(item => !externalItems.some(external => external.kind === "contact" && external.id === `contact:${item.id}`)).map(item => ({ label: t("ui.value_value_9482534", { p0: item.name || item.email, p1: item.message.split(/\r?\n/)[0] }), keywords: `${item.email} ${item.site_origin} ${item.message}`, type: "contact", action: () => onContactOpen?.(item) })),
   ];
   const results = commands
     .filter((command) =>
@@ -125,17 +129,17 @@ export function CommandPalette({
         setSearch("");
         onOpenChange(value);
       }}
-      title="Find your next move"
+      title={t("ui.find_your_next_move")}
       className="palette"
       style={viewport ? { "--palette-viewport-height": `${viewport.height}px`, "--palette-viewport-top": `${viewport.top}px` } as CSSProperties : undefined}
     >
       <div className="palette-search">
-        <span className="palette-prompt" aria-hidden="true">&gt;</span>
+        <span className="palette-prompt" aria-hidden="true">{t("ui.gt")}</span>
         <input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="search or type a command…"
-          aria-label="Search"
+          placeholder={t("ui.search_or_type_a_command")}
+          aria-label={t("ui.search")}
           autoFocus
           onKeyDown={(event) => {
             if (event.key === "ArrowDown") {
@@ -151,16 +155,16 @@ export function CommandPalette({
             }
           }}
         />
-        <kbd>esc</kbd>
+        <kbd>{t("ui.esc_abb761d")}</kbd>
       </div>
       <div className="palette-results" onKeyDown={moveListFocus}>
-        {githubSearchMessage && <p className="muted" role="status">{githubSearchMessage}</p>}
-        {open && contactSearch.length >= 2 && remoteContact.isFetching && <p className="muted" role="status">{"// searching Contact"}</p>}
+        {githubSearchMessage && <p className="muted" role="status">{tx(githubSearchMessage)}</p>}
+        {open && contactSearch.length >= 2 && remoteContact.isFetching && <p className="muted" role="status">{t("ui.searching_contact")}</p>}
         <InlineError error={remoteContact.error} />
-        {open && contactSearch.length >= 2 && remoteContact.data?.status === "error" && <p className="error-text" role="alert">{remoteContact.data.message}</p>}
-        {open && contactSearch.length >= 2 && remoteContact.data?.hasMore && <p className="muted">More messages in Contact. Narrow your search.</p>}
+        {open && contactSearch.length >= 2 && remoteContact.data?.status === "error" && <p className="error-text" role="alert">{tx(remoteContact.data.message)}</p>}
+        {open && contactSearch.length >= 2 && remoteContact.data?.hasMore && <p className="muted">{t("ui.more_messages_in_contact_narrow_your_search")}</p>}
         {results.length ? (
-          [...new Set(results.map(result => result.type))].map(type => <section className="search-group" key={type}><h2>{type}</h2>{results.filter(result => result.type === type).map((command, index) => (
+          [...new Set(results.map(result => result.type))].map(type => <section className="search-group" key={type}><h2>{tx(type)}</h2>{results.filter(result => result.type === type).map((command, index) => (
             <button
               key={`${command.type}:${command.label}:${index}`}
               data-list-row
@@ -170,22 +174,20 @@ export function CommandPalette({
                 command.action();
               }}
             >
-              <span className="result-label">{command.label}</span>
+              <span className="result-label">{command.display ?? command.label}</span>
               <span className="palette-open" aria-hidden="true">↗</span>
             </button>
           ))}</section>)
         ) : (
-          <p className="palette-empty">{`// Nothing matches “${search}”.`}</p>
+          <p className="palette-empty">{t("ui.nothing_matches_value", { p0: search })}</p>
         )}
       </div>
       <div className="palette-footer">
         <span>
-          <kbd>↑</kbd> <kbd>↓</kbd> navigate
-        </span>
+          <kbd>↑</kbd> <kbd>↓</kbd> {" "}{t("ui.navigate")}</span>
         <span>
-          <kbd>enter</kbd> open
-        </span>
-        <span>{results.length} results</span>
+          <kbd>{t("ui.enter_3674951")}</kbd> {" "}{t("ui.open")}</span>
+        <span>{results.length} {" "}{t("ui.results")}</span>
       </div>
     </Modal>
   );

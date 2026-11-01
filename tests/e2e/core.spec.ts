@@ -6,7 +6,7 @@ test("two already-open capture editors send one create after a successful ACK", 
   const input = "Cross-window capture #English @Homework tomorrow";
   await capture(page, input); await capture(second, input);
   await page.getByRole("button", { name: "Create task", exact: true }).click();
-  await expect(page.locator(".creation-result").getByRole("status")).toContainText("Created in Notion");
+  await expect(page.locator(".creation-result").getByRole("status")).toContainText("Synced to Notion");
   await expect(second.getByRole("textbox", { name: "Task input" })).toBeDisabled();
   await expect(second.getByRole("alert")).toContainText("Task created in another window");
   await second.locator(".capture-dialog form").evaluate(element => (element as HTMLFormElement).requestSubmit());
@@ -27,7 +27,7 @@ test("capture storage failure sends no task, retains input and allows correction
   await expect(page.getByRole("textbox", { name: "Task input" })).toBeEnabled(); expect(state.creates).toHaveLength(0);
   await page.evaluate(() => { (window as unknown as { captureStorageBlocked: boolean }).captureStorageBlocked = false; });
   await page.getByRole("button", { name: "Create task", exact: true }).click();
-  await expect(page.locator(".creation-result").getByRole("status")).toContainText("Created in Notion"); expect(state.creates).toHaveLength(1);
+  await expect(page.locator(".creation-result").getByRole("status")).toContainText("Synced to Notion"); expect(state.creates).toHaveLength(1);
 });
 
 test("uncertain source conversion can verify and link an inspected task without another create", async ({ page }) => {
@@ -62,14 +62,14 @@ test("natural capture previews compactly, prevents duplicate submit and keeps co
   const dialog = page.getByRole("dialog", { name: "Quick add" });
   await expect(dialog.locator(".preview-title")).toHaveText("Make presentation");
   await expect(dialog.locator(".capture-fields")).not.toHaveAttribute("open");
-  await expect(dialog.locator(".capture-preview")).toContainText("English"); await expect(dialog.locator(".capture-preview")).toContainText("04.10.");
+  await expect(dialog.locator(".capture-preview")).toContainText("English"); await expect(dialog.locator(".capture-preview")).toContainText("10/04");
   if ((page.viewportSize()?.width ?? 1024) <= 760) {
     await expect(dialog.getByLabel("Task input")).toHaveCSS("font-size", "16px");
     const sizes = await page.locator(".task-meta, .task-dates, .task-context, .capture-preview .tag").evaluateAll(nodes => nodes.filter(node => (node as HTMLElement).offsetParent !== null).map(node => parseFloat(getComputedStyle(node).fontSize)));
     expect(sizes.length).toBeGreaterThan(0); expect(sizes.every(size => size >= 10)).toBe(true);
   }
   await page.getByRole("textbox", { name: "Task input" }).press("Enter"); await page.keyboard.press("Enter");
-  await expect(dialog.getByRole("status")).toContainText("Created in Notion"); await expect(dialog.getByRole("alert").filter({ hasText: "do not create it again" })).toBeVisible();
+  await expect(dialog.getByRole("status")).toContainText("Synced to Notion"); await expect(dialog.getByRole("alert").filter({ hasText: "do not create it again" })).toBeVisible();
   expect(state.creates).toHaveLength(1); expect(state.creates[0]).toMatchObject({ task: { title: "Make presentation", areaId: "homework", projectId: "english", dates: { start: today, end: "2026-10-04" } }, metadata: { priority: "high", recurrenceRule: { frequency: "week", interval: 2 } }, tags: ["school"] });
   await dialog.getByRole("button", { name: "Done" }).click(); await expect(page.locator('.task-content[data-task-id="created-1"]')).toContainText("Make presentation");
 });
@@ -85,7 +85,7 @@ test("unresolved captures remain local drafts and can be explicitly assigned and
   await page.getByRole("button", { name: "Resolve", exact: true }).click();
   await page.getByLabel("Task project", { exact: true }).selectOption("english"); await expect(page.getByLabel("Task area", { exact: true })).toHaveValue("homework");
   await page.getByLabel("Task tags", { exact: true }).fill("one, two"); await expect(page.getByLabel("Task tags", { exact: true })).toHaveValue("one, two");
-  await page.getByRole("button", { name: "Create task", exact: true }).click(); await expect(page.getByRole("status").filter({ hasText: "Created in Notion" })).toBeVisible();
+  await page.getByRole("button", { name: "Create task", exact: true }).click(); await expect(page.getByRole("status").filter({ hasText: "Synced to Notion" })).toBeVisible();
   expect(state.creates[0].draftId).toBe(savedDraftId); expect(state.creates[0].tags).toEqual(["one", "two"]); expect(state.local.drafts).toHaveLength(0);
 });
 
@@ -95,7 +95,7 @@ test("manual resolution preserves explicit conflicts until fields are confirmed"
   await page.getByLabel("Task area", { exact: true }).selectOption("homework"); await page.getByLabel("Task title", { exact: true }).fill("Prepare corrected title");
   await expect(page.getByRole("button", { name: "Create task", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "Use edited fields" }).click(); await page.getByRole("button", { name: "Create task", exact: true }).click();
-  await expect(page.getByRole("status").filter({ hasText: "Created in Notion" })).toBeVisible(); expect(state.creates[0].task).toMatchObject({ title: "Prepare corrected title", areaId: "homework" });
+  await expect(page.getByRole("status").filter({ hasText: "Synced to Notion" })).toBeVisible(); expect(state.creates[0].task).toMatchObject({ title: "Prepare corrected title", areaId: "homework" });
 });
 
 test("inspector edits only changed Notion fields, local tags and completion, and confirms trash", async ({ page }) => {
@@ -115,7 +115,7 @@ test("overview, upcoming and entity groups retain completed and Someday without 
   await workspace(page); await navigate(page, "Overview");
   const highlight = page.locator("section.task-section").filter({ has: page.getByRole("heading", { name: /daily highlight/ }) }); await expect(highlight).toContainText("Review presentation"); await expect(highlight).not.toContainText("Future highlight");
   await navigate(page, "Upcoming"); await expect(page.getByRole("heading", { name: /october 2026/ })).toBeVisible();
-  await navigate(page, "English"); await expect(page.locator("h1")).toHaveText(/English3/); await expect(page.locator("main")).toContainText("deadline 2026-12-01");
+  await navigate(page, "English"); await expect(page.locator("h1")).toHaveText(/English3/); await expect(page.locator('.view-intro time[datetime="2026-12-01"]')).toHaveText("2026-12-01");
   const done = page.locator("section.task-section").filter({ has: page.getByRole("heading", { name: /completed/ }) }); await expect(done.locator(".task-content")).toBeVisible();
   const someday = page.locator("details.collapsed-section").filter({ hasText: "Someday idea" }); await someday.locator("summary").click(); await expect(someday.locator(".task-content")).toBeVisible();
 });
@@ -174,7 +174,7 @@ test("GitHub Inbox opens real item context and explicitly creates one linked tas
   const composer = page.getByRole("dialog", { name: "Create linked task" });
   await expect(composer.locator(".preview-title")).toHaveText("Tomorrow #7 parser review");
   await composer.getByRole("button", { name: "Create task", exact: true }).click();
-  await expect(composer.getByRole("status")).toContainText("Created in Notion");
+  await expect(composer.getByRole("status")).toContainText("Synced to Notion");
   expect(state.creates).toHaveLength(1); expect(state.creates[0]).toMatchObject({ task: { title: "Tomorrow #7 parser review", projectId: "english", areaId: "homework" }, source: { source: "github", externalId: "owner/repo:pull:7", url: "https://github.com/owner/repo/pull/7" } });
   await composer.getByRole("button", { name: "Done" }).click();
   await expect(detail.getByRole("button", { name: "Open linked task" })).toBeVisible();
@@ -224,7 +224,7 @@ test("Contact Inbox and search open actual items; conversion is explicit and pre
   const state = await workspace(page, false, true); await navigate(page, "Inbox"); await expect(page.locator("#workspace")).toContainText("contact / unread");
   await page.getByRole("button", { name: /Contact Visitor Tomorrow/ }).click(); const detail = page.locator(".inbox-inspector .contact-detail"); expect(state.creates).toHaveLength(0);
   await detail.getByRole("button", { name: "Create task", exact: true }).click(); const composer = page.getByRole("dialog", { name: "Create linked task" }); await expect(composer.locator(".preview-title")).toHaveText("Tomorrow #7 Contact request"); await expect(composer.getByRole("button", { name: "Create task", exact: true })).toBeDisabled();
-  await composer.getByLabel("Task project", { exact: true }).selectOption("english"); await composer.getByRole("button", { name: "Create task", exact: true }).click(); await expect(composer.getByRole("status")).toContainText("Created in Notion"); expect(state.creates).toHaveLength(1); expect(state.creates[0]).toMatchObject({ task: { title: "Tomorrow #7 Contact request", projectId: "english", areaId: "homework" }, source: { source: "contact", externalId: "7", url: null } }); await composer.getByRole("button", { name: "Done" }).click(); await expect(detail.getByRole("button", { name: "Open linked task" })).toBeVisible();
+  await composer.getByLabel("Task project", { exact: true }).selectOption("english"); await composer.getByRole("button", { name: "Create task", exact: true }).click(); await expect(composer.getByRole("status")).toContainText("Synced to Notion"); expect(state.creates).toHaveLength(1); expect(state.creates[0]).toMatchObject({ task: { title: "Tomorrow #7 Contact request", projectId: "english", areaId: "homework" }, source: { source: "contact", externalId: "7", url: null } }); await composer.getByRole("button", { name: "Done" }).click(); await expect(detail.getByRole("button", { name: "Open linked task" })).toBeVisible();
   await page.keyboard.press("Escape"); await page.keyboard.press("Control+k"); await page.getByRole("textbox", { name: "Search", exact: true }).fill("unique contact phrase"); await page.locator(".palette-result").first().click(); await expect(page.locator(".inbox-inspector .contact-message")).toContainText("unique contact phrase"); expect(state.creates).toHaveLength(1);
 });
 

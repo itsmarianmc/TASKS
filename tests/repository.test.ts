@@ -48,7 +48,7 @@ describe("local persistence", () => {
       repo.mutate({ action: "setPreferences", patch: { sidebarCollapsed: true } }),
       repo.mutate({ action: "setPreferences", patch: { notificationPermissionAsked: true } }),
     ]);
-    expect(await repo.getPreferences()).toEqual({ theme: "dark", lastView: "project:english", sidebarCollapsed: true, notificationPermissionAsked: true, showCompletedTasks: true, hideProjectsWithoutCurrentTasks: false });
+    expect(await repo.getPreferences()).toEqual({ theme: "dark", lastView: "project:english", sidebarCollapsed: true, notificationPermissionAsked: true, literalQuotedText: true, showCompletedTasks: true, hideProjectsWithoutCurrentTasks: false });
   });
   it("upserts one note per entity without affecting a different entity", async () => {
     const { repo } = setup();

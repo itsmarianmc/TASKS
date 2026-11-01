@@ -1,4 +1,5 @@
 "use client";
+import { useTranslation } from "./localization";
 
 import { useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -22,6 +23,8 @@ import { useGitHub } from "@/lib/github-queries";
 import { parserMode } from "@/lib/parser";
 import type { AiFallbackStatus } from "@/lib/ai-contracts";
 import { DisplayControls } from "./display-controls";
+import { TerminalToggle } from "./terminal-toggle";
+import { useConfig } from "@/lib/queries";
 import { PwaSettings } from "./pwa";
 
 export function SettingsView({
@@ -35,7 +38,10 @@ export function SettingsView({
   diagnostics: Diagnostic[];
   timezone: string;
 }) {
+  const { t, text: tx } = useTranslation();
   const mutation = useLocalMutation();
+  const catalogConfig = useConfig();
+  const { languages, locale } = useTranslation();
   const github = useGitHub();
   const refresh = useRefresh();
   const client = useQueryClient();
@@ -126,13 +132,24 @@ export function SettingsView({
       <InlineError error={health.error} />
       {message && (
         <p className="success-text" role="status">
-          ✓ {message}
+          ✓ {tx(message)}
         </p>
       )}
       <section className="settings-section">
-        <h2>appearance</h2>
+        <h2>{t("ui.language_parsing")}</h2>
+        <label htmlFor="language">{t("ui.language_89b86ab")}</label>
+        <select id="language" aria-label={t("ui.language_89b86ab")} value={locale} onChange={event => mutation.mutate({ action: "setPreferences", patch: { language: event.target.value } })}>
+          {languages.map(language => <option key={language.lang} value={language.lang}>{language.locName}</option>)}
+        </select>
+        {catalogConfig.data?.catalogs?.diagnostics.map((message, index) => {
+          const failure = /^Catalog (\d+) \((language|date)\): (.*)$/.exec(message);
+          return <p key={index} className="muted">{failure ? t("catalogs.failure", { index: failure[1], kind: tx(failure[2]), reason: tx(failure[3]) }) : tx(message)}</p>;
+        })}
+      </section>
+      <section className="settings-section">
+        <h2>{t("ui.appearance")}</h2>
         <div className="setting-line">
-          <label htmlFor="theme">Theme</label>
+          <label htmlFor="theme">{t("ui.theme_a797e30")}</label>
           <select
             id="theme"
             value={local.preferences.theme}
@@ -147,20 +164,20 @@ export function SettingsView({
               )
             }
           >
-            <option value="system">System</option>
-            <option value="dark">Dark</option>
-            <option value="light">Light</option>
+            <option value="system">{t("ui.system_bc0792d")}</option>
+            <option value="dark">{t("ui.dark_ae1ef01")}</option>
+            <option value="light">{t("ui.light_a36ef8a")}</option>
           </select>
         </div>
         <div className="setting-line">
-          <span>Calendar timezone</span>
+          <span>{t("ui.calendar_timezone")}</span>
           <span className="muted">{timezone}</span>
         </div>
       </section>
-      <section className="settings-section"><h2>display</h2><DisplayControls preferences={local.preferences} /></section>
+      <section className="settings-section"><h2>{t("ui.display")}</h2><DisplayControls preferences={local.preferences} /></section>
       <section className="settings-section" id="integrations">
         <div className="section-heading">
-          <h2>connections</h2>
+          <h2>{t("ui.connections")}</h2>
           <button
             className="text-button"
             disabled={health.isFetching}
@@ -170,8 +187,7 @@ export function SettingsView({
               void client.fetchQuery({ queryKey: ["notion-schema"], queryFn: () => apiRequest<NotionSchemaResponse>("/api/notion/schema?refresh=1"), staleTime: 0 }).catch(() => {});
             }}
           >
-            Check connections
-          </button>
+            {t("ui.check_connections")}</button>
         </div>
         {(["notion", "github", "contact", "localDatabase"] as const).map(
           (source) => {
@@ -184,28 +200,17 @@ export function SettingsView({
               <div className="diagnostic-row" key={source}>
                 <span
                   className={
-                    state === "ok"
-                      ? "success-text"
-                      : state === "error"
-                        ? "error-text"
-                        : "muted"
+                    state === "ok" ? "success-text" : state === "error" ? "error-text" : "muted"
                   }
                 >
                   {state === "ok" ? "✓" : state === "error" ? "!" : "○"}
                 </span>
                 <div>
                   <strong>
-                    {source === "localDatabase"
-                      ? "Local database"
-                      : source === "contact"
-                        ? "Contact API"
-                        : source === "notion"
-                          ? "Notion"
-                          : "GitHub"}
+                    {source === "localDatabase" ? t("ui.local_database") : source === "contact" ? t("ui.contact_api") : source === "notion" ? t("ui.notion_486af5d") : t("ui.github_5442e2b")}
                   </strong>
                   <p>
-                    {diagnostic?.message ??
-                      (state === "configured"
+                    {diagnostic?.message ?? (state === "configured"
                         ? "Configured · unverified"
                         : state === "disabled"
                           ? "Not configured · add credentials and restart"
@@ -214,60 +219,54 @@ export function SettingsView({
                             : "Checking…")}
                   </p>
                   {diagnostic?.details?.map((detail) => (
-                    <p key={detail} className="diagnostic-detail">
-                      {detail}
+                    <p key={tx(detail)} className="diagnostic-detail">
+                      {tx(detail)}
                     </p>
                   ))}
                 </div>
-                <span className="status-label">{state}</span>
+                <span className="status-label">{tx(state)}</span>
               </div>
             );
           },
         )}
         <details className="setup-details">
-          <summary>Set up Notion</summary>
+          <summary>{t("ui.set_up_notion")}</summary>
           <p>
-            Share your Tasks, Projects and Areas databases with your Notion
-            integration. Set <code>NOTION_TOKEN</code> and the three database
-            IDs in your server environment, then restart TÆSKS.
-          </p>
+            {t("ui.share_your_tasks_projects_and_areas_databases_with_your_notion_integration_set")}{" "}<code>NOTION_TOKEN</code> {" "}{t("ui.and_the_three_database_ids_in_your_server_environment_then_restart_t_sks")}</p>
           <p>
-            Tasks stay in Notion. Notes, files, filters and drafts stay in your
-            local storage. Tokens are never entered or shown here.
-          </p>
+            {t("ui.tasks_stay_in_notion_notes_files_filters_and_drafts_stay_in_your_local_storage_tokens_are_never")}</p>
         </details>
         <details className="setup-details">
-          <summary>Set up GitHub</summary>
-          <p>Set <code>GITHUB_TOKEN</code> and restart TÆSKS.</p>
-          <p>Read permissions: Metadata, Issues, Pull requests, Actions and Contents.</p>
+          <summary>{t("ui.set_up_github")}</summary>
+          <p>{t("ui.set")}{" "}<code>GITHUB_TOKEN</code> {" "}{t("ui.and_restart_t_sks")}</p>
+          <p>{t("ui.read_permissions_metadata_issues_pull_requests_actions_and_contents")}</p>
         </details>
         <NotionSettings local={local} />
       </section>
       <PwaSettings />
       <section className="settings-section">
-        <h2>quick add parser</h2>
-        <div className="setting-line"><span>Language support</span><span className="muted">{parserMode.label}</span></div>
-        <div className="setting-line"><span>Optional AI fallback · Gemini</span><span className="status-label">{ai.data?.status ?? "Checking…"}</span></div>
-        {ai.data && <div className="setting-line"><span>Model</span><span className="muted">{ai.data.model}</span></div>}
-        <p className="muted">Rules first. Optional fallback on request for uncertain input. Ready means configured; connectivity is checked only during parsing.</p>
+        <h2>{t("ui.quick_add_parser")}</h2>
+        <div className="setting-line"><span>{t("ui.language_support")}</span><span className="muted">{tx(parserMode.label)}</span></div>
+        <div className="setting-line"><span>{t("ui.optional_ai_fallback_gemini")}</span><span className="status-label">{ai.data?.status ? tx(ai.data.status) : t("ui.checking_820d600")}</span></div>
+        {ai.data && <div className="setting-line"><span>{t("ui.model")}</span><span className="muted">{ai.data.model}</span></div>}
+        <p className="muted">{t("ui.rules_first_optional_fallback_on_request_for_uncertain_input_ready_means_configured_connectivit")}</p>
       </section>
       <section className="settings-section">
         <h2>
-          parser aliases <span>{local.aliases.length}</span>
+          {t("ui.parser_aliases_c378ff0")}{" "}<span>{local.aliases.length}</span>
         </h2>
         <p className="muted">
-          Short names for projects and areas. Ambiguous names require a choice.
-        </p>
+          {t("ui.short_names_for_projects_and_areas_ambiguous_names_require_a_choice")}</p>
+        <TerminalToggle label={t("ui.treat_quoted_text_as_literal")} checked={local.preferences.literalQuotedText !== false} onChange={literalQuotedText => mutation.mutate({ action: "setPreferences", patch: { literalQuotedText } })} />
+        <p className="muted">{t("ui.quoted_text_stays_in_the_task_title_and_is_excluded_from_date_relation_tag_priority_and_recurre")}</p>
         {local.aliases.map((value) => (
           <div className="resource-row" key={value.id}>
             <span className="accent">{value.alias}</span>
             <span className="muted">→</span>
             <span className="resource-name">
-              {value.entityType === "project"
-                ? graph.projects.find(
+              {value.entityType === "project" ? graph.projects.find(
                     (project) => project.id === value.entityId,
-                  )?.name
-                : graph.areas.find((area) => area.id === value.entityId)?.name}
+                  )?.name : graph.areas.find((area) => area.id === value.entityId)?.name}
               {!(value.entityType === "project"
                 ? graph.projects.some(
                     (project) => project.id === value.entityId,
@@ -277,14 +276,14 @@ export function SettingsView({
             </span>
             <button
               className="icon-button"
-              aria-label={`Edit alias ${value.alias}`}
+              aria-label={t("ui.edit_alias_value", { p0: value.alias })}
               onClick={() => setAlias(value)}
             >
               <Pencil size={13} />
             </button>
             <button
               className="icon-button"
-              aria-label={`Delete alias ${value.alias}`}
+              aria-label={t("ui.delete_alias_value", { p0: value.alias })}
               onClick={() =>
                 setRemove({
                   title: `Delete alias “${value.alias}”?`,
@@ -302,8 +301,7 @@ export function SettingsView({
           key={alias?.id ?? "new-alias"}
         >
           <label>
-            Project or area
-            <select
+            {t("ui.project_or_area")}<select
               name="entity"
               required
               defaultValue={
@@ -312,18 +310,16 @@ export function SettingsView({
               disabled={!graph.areas.length && !graph.projects.length}
             >
               <option value="" disabled>
-                {graph.projects.length || graph.areas.length
-                  ? "Select an entity"
-                  : "Connect Notion first"}
+                {graph.projects.length || graph.areas.length ? t("ui.select_an_entity") : t("ui.connect_notion_first")}
               </option>
-              <optgroup label="Projects">
+              <optgroup label={t("ui.projects_53e890d")}>
                 {graph.projects.map((project) => (
                   <option key={project.id} value={`project:${project.id}`}>
                     {project.name}
                   </option>
                 ))}
               </optgroup>
-              <optgroup label="Areas">
+              <optgroup label={t("ui.areas_14ce09a")}>
                 {graph.areas.map((area) => (
                   <option key={area.id} value={`area:${area.id}`}>
                     {area.name}
@@ -333,11 +329,10 @@ export function SettingsView({
             </select>
           </label>
           <label>
-            Alias
-            <input
+            {t("ui.alias_0425981")}<input
               name="alias"
               defaultValue={alias?.alias ?? ""}
-              placeholder="e.g. English"
+              placeholder={t("ui.e_g_english")}
               required
               maxLength={128}
             />
@@ -350,7 +345,7 @@ export function SettingsView({
                 (!graph.areas.length && !graph.projects.length)
               }
             >
-              {alias ? "Update" : "Add alias"}
+              {alias ? t("ui.update") : t("ui.add_alias")}
             </button>
             {alias && (
               <button
@@ -358,29 +353,28 @@ export function SettingsView({
                 className="text-button"
                 onClick={() => setAlias(null)}
               >
-                Cancel
-              </button>
+                {t("ui.cancel")}</button>
             )}
           </div>
         </form>
       </section>
       <section className="settings-section">
         <h2>
-          saved filters <span>{local.filters.length}</span>
+          {t("ui.saved_filters_110768b")}{" "}<span>{local.filters.length}</span>
         </h2>
         {local.filters.map((value) => (
           <div className="resource-row" key={value.id}>
             <span className="resource-name">{value.name}</span>
             <button
               className="icon-button"
-              aria-label={`Edit filter ${value.name}`}
+              aria-label={t("ui.edit_filter_value", { p0: value.name })}
               onClick={() => setFilter(value)}
             >
               <Pencil size={13} />
             </button>
             <button
               className="icon-button"
-              aria-label={`Delete filter ${value.name}`}
+              aria-label={t("ui.delete_filter_value", { p0: value.name })}
               onClick={() =>
                 setRemove({
                   title: `Delete filter “${value.name}”?`,
@@ -398,19 +392,17 @@ export function SettingsView({
           key={filter?.id ?? "new-filter"}
         >
           <label>
-            Name
-            <input
+            {t("ui.name_709a232")}<input
               name="name"
               defaultValue={filter?.name ?? ""}
               required
               maxLength={64}
-              placeholder="My focus list"
+              placeholder={t("ui.my_focus_list")}
             />
           </label>
           <label>
-            Area
-            <select name="areaId" defaultValue={filter?.criteria.areaId ?? ""}>
-              <option value="">All areas</option>
+            {t("ui.area_2745deb")}<select name="areaId" defaultValue={filter?.criteria.areaId ?? ""}>
+              <option value="">{t("ui.all_areas")}</option>
               {graph.areas.map((area) => (
                 <option key={area.id} value={area.id}>
                   {area.name}
@@ -419,12 +411,11 @@ export function SettingsView({
             </select>
           </label>
           <label>
-            Project
-            <select
+            {t("ui.project_f6f4da8")}<select
               name="projectId"
               defaultValue={filter?.criteria.projectId ?? ""}
             >
-              <option value="">All projects</option>
+              <option value="">{t("ui.all_projects")}</option>
               {graph.projects.map((project) => (
                 <option key={project.id} value={project.id}>
                   {project.name}
@@ -433,28 +424,25 @@ export function SettingsView({
             </select>
           </label>
           <label>
-            Priority
-            <select
+            {t("ui.priority_886cbff")}<select
               name="priority"
               defaultValue={filter?.criteria.priority ?? ""}
             >
-              <option value="">Any priority</option>
+              <option value="">{t("ui.any_priority")}</option>
               {["none", "low", "medium", "high", "urgent"].map((value) => (
-                <option key={value}>{value}</option>
+                <option value={value} key={value}>{tx(value)}</option>
               ))}
             </select>
           </label>
           <label>
-            From
-            <input
+            {t("ui.from_3f66052")}<input
               type="date"
               name="startDate"
               defaultValue={filter?.criteria.startDate ?? ""}
             />
           </label>
           <label>
-            Until
-            <input
+            {t("ui.until")}<input
               type="date"
               name="endDate"
               defaultValue={filter?.criteria.endDate ?? ""}
@@ -462,25 +450,22 @@ export function SettingsView({
           </label>
           {(["highlight", "someday", "completed"] as const).map((key) => (
             <label key={key}>
-              {key}
+              {tx(key)}
               <select
                 name={key}
                 defaultValue={
-                  filter?.criteria[key] === undefined
-                    ? ""
-                    : String(filter.criteria[key])
+                  filter?.criteria[key] === undefined ? "" : String(filter.criteria[key])
                 }
               >
-                <option value="">Either</option>
-                <option value="true">Yes</option>
-                <option value="false">No</option>
+                <option value="">{t("ui.either")}</option>
+                <option value="true">{t("ui.yes")}</option>
+                <option value="false">{t("ui.no_816c52f")}</option>
               </select>
             </label>
           ))}
           {local.tags.length > 0 && (
             <label>
-              Tags (all selected)
-              <select
+              {t("ui.tags_all_selected")}<select
                 multiple
                 name="tagIds"
                 defaultValue={filter?.criteria.tagIds ?? []}
@@ -495,7 +480,7 @@ export function SettingsView({
           )}
           <div className="form-footer inline-actions">
             <button className="button" >
-              {filter ? "Update filter" : "Save filter"}
+              {filter ? t("ui.update_filter") : t("ui.save_filter")}
             </button>
             {filter && (
               <button
@@ -503,28 +488,27 @@ export function SettingsView({
                 className="text-button"
                 onClick={() => setFilter(null)}
               >
-                Cancel
-              </button>
+                {t("ui.cancel")}</button>
             )}
           </div>
         </form>
       </section>
       <section className="settings-section">
         <h2>
-          project repositories <span>{local.integrations.length}</span>
+          {t("ui.project_repositories")}{" "}<span>{local.integrations.length}</span>
         </h2>
           <datalist id="github-repositories">{github.data?.repositories.items.map(repo => <option key={repo.id} value={repo.name} />)}</datalist>
-          {local.integrations.some(mapping => github.data?.repositories.status === "ok" && !github.data.repositories.items.some(repo => repo.name.toLowerCase() === mapping.repository.toLowerCase())) && <p className="muted">Some repositories are unverified. Open their projects to check access.</p>}
+          {local.integrations.some(mapping => github.data?.repositories.status === "ok" && !github.data.repositories.items.some(repo => repo.name.toLowerCase() === mapping.repository.toLowerCase())) && <p className="muted">{t("ui.some_repositories_are_unverified_open_their_projects_to_check_access")}</p>}
           {local.integrations.map((value) => (
           <div className="resource-row" key={value.id}>
             <span className="resource-name">
               {graph.projects.find((project) => project.id === value.projectId)
-                ?.name ?? "Project unavailable"}
+                ?.name ?? t("ui.project_unavailable")}
             </span>
             <span className="purple">{value.repository}</span>
             <button
               className="icon-button"
-              aria-label={`Delete repository mapping ${value.repository}`}
+              aria-label={t("ui.delete_repository_mapping_value", { p0: value.repository })}
               onClick={() =>
                 setRemove({
                   title: "Remove repository mapping?",
@@ -556,12 +540,9 @@ export function SettingsView({
           }}
         >
           <label>
-            Project
-            <select name="projectId" required disabled={!graph.projects.length}>
+            {t("ui.project_f6f4da8")}<select name="projectId" required disabled={!graph.projects.length}>
               <option value="">
-                {graph.projects.length
-                  ? "Select project"
-                  : "Connect Notion first"}
+                {graph.projects.length ? t("ui.select_project") : t("ui.connect_notion_first")}
               </option>
               {graph.projects.map((project) => (
                 <option key={project.id} value={project.id}>
@@ -571,12 +552,11 @@ export function SettingsView({
             </select>
           </label>
           <label>
-            Repository
-            <input
+            {t("ui.repository_3123868")}<input
               name="repository"
               required
               pattern="[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+"
-              placeholder="owner/repository"
+              placeholder={t("ui.owner_repository")}
               maxLength={256}
                 list="github-repositories"
             />
@@ -585,8 +565,7 @@ export function SettingsView({
             className="button"
             disabled={ !graph.projects.length}
           >
-            Save mapping
-          </button>
+            {t("ui.save_mapping")}</button>
         </form>
       </section>
       <ConfirmDialog optimistic
@@ -594,8 +573,8 @@ export function SettingsView({
         onOpenChange={(open) => {
           if (!open) setRemove(null);
         }}
-        title={remove?.title ?? "Delete?"}
-        description="This removes the setting. Notion and GitHub data stay."
+        title={remove?.title ? tx(remove.title) : t("ui.delete_042dc9b")}
+        description={t("ui.this_removes_the_setting_notion_and_github_data_stay")}
         onConfirm={async () => {
           if (remove) await mutation.mutateAsync(remove.action);
         }}

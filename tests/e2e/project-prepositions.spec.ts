@@ -25,7 +25,7 @@ for (const [input, projectId, name, savedAlias] of [
     await expect(dialog.getByLabel("Task project", { exact: true })).toHaveValue(projectId);
     await expect(dialog.getByLabel("Task area", { exact: true })).toHaveValue("work");
     await dialog.getByRole("button", { name: "Create task", exact: true }).click();
-    await expect(dialog.getByRole("status")).toContainText("Created in Notion");
+    await expect(dialog.getByRole("status")).toContainText("Synced to Notion");
     expect(state.creates).toHaveLength(1);
     expect(state.creates[0].task).toMatchObject({ title: "Add Notification", projectId, areaId: "work" });
   });

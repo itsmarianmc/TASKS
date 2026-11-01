@@ -1,4 +1,5 @@
 "use client";
+import { useTranslation } from "./localization";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useConfig, useLocal, useLocalMutation } from "@/lib/queries";
 import { useTaskMutation } from "@/lib/task-queries";
@@ -10,6 +11,7 @@ import type { Graph, InboxDraft, ParseContext, ParseResult } from "@/lib/types";
 import type { AiParseResponse } from "@/lib/ai-contracts";
 import { InlineError, Modal, ConfirmDialog } from "./primitives";
 import { TaskFields } from "./task-fields";
+import { DateChips } from "./date-chips";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queries";
 import { putDeviceDraft, readDeviceDrafts, syncDeviceDrafts } from "@/lib/device-drafts";
@@ -31,6 +33,7 @@ export interface TaskComposerProps {
 }
 /** Shared quick add, draft resolution and explicit external-item conversion. */
 export function TaskComposer({ open, onOpenChange, graph, view = "overview", initialTitle, draft, source, sourceContext, onCreated, onSaved }: TaskComposerProps) {
+  const { t, text: tx, dateCatalog, locale } = useTranslation();
   const config = useConfig();
   const local = useLocal();
   const mutation = useLocalMutation();
@@ -89,7 +92,7 @@ export function TaskComposer({ open, onOpenChange, graph, view = "overview", ini
     window.addEventListener("storage", changed);
     return () => window.removeEventListener("storage", changed);
   }, [input, persistence, created]);
-  const context: ParseContext = useMemo(() => ({ timezone: config.data?.timezone ?? "Europe/Berlin", ...captureContext(view, graph), ...sourceContext }), [config.data?.timezone, graph, view, sourceContext]);
+  const context: ParseContext = useMemo(() => ({ literalQuotedText: local.data?.preferences.literalQuotedText !== false, dateCatalog, timezone: config.data?.timezone ?? "Europe/Berlin", ...captureContext(view, graph), ...sourceContext }), [config.data?.timezone, graph, view, sourceContext, local.data?.preferences.literalQuotedText, dateCatalog]);
   const deterministic = useMemo(() => parseQuickAdd(input, graph, local.data?.aliases, context, local.data?.tags), [input, graph, local.data?.aliases, local.data?.tags, context]);
   const currentInference = inferred?.basis === deterministic ? inferred.result : null;
   const parsed = currentInference ?? deterministic;
@@ -211,27 +214,27 @@ export function TaskComposer({ open, onOpenChange, graph, view = "overview", ini
   async function guardedDiscard() {
     await withBrowserLock("taesks-ordinary-capture", async () => { discardCapture(input); clearBrowserInput(); onOpenChange(false); });
   }
-  return <><Modal open={open} onOpenChange={value => { if (!recovering) { parseRequest.current?.controller.abort(); parseRequest.current = null; onOpenChange(value); } }} title={draft ? "Resolve Inbox draft" : effectiveSource ? "Create linked task" : "Quick add"} className="capture-dialog">
+  return <><Modal open={open} onOpenChange={value => { if (!recovering) { parseRequest.current?.controller.abort(); parseRequest.current = null; onOpenChange(value); } }} title={draft ? t("ui.resolve_inbox_draft") : effectiveSource ? t("ui.create_linked_task") : t("ui.quick_add_c372877")} className="capture-dialog">
     {created ? <div className="creation-result">
-      <p role="status" className="accent">{created.existing ? "Already linked" : "Created in Notion"} / {created.task.title}</p>
-      {created.warnings.map((warning, index) => <p role="alert" className="error-text" key={index}>{warning}</p>)}
-      {notice && <p role="alert" className="error-text">{notice}</p>}
-      <div className="dialog-actions"><a className="button" href={created.task.url} target="_blank" rel="noopener noreferrer">Open in Notion</a><button className="button primary" disabled={pending} onClick={() => onOpenChange(false)}>Done</button></div>
-    </div> : added ? <div className="creation-result"><p role="status" className="accent">Task added / {value.title}</p><div className="dialog-actions"><button className="button primary" onClick={() => onOpenChange(false)}>Done</button></div></div> : <form onSubmit={event => { event.preventDefault(); void create(); }}>
-      <div className="capture-input"><span aria-hidden="true">&gt;</span><textarea rows={2} aria-label="Task input" placeholder="What needs doing?" value={input} maxLength={10000} disabled={pending || uncertain} autoFocus onChange={event => { parseRequest.current?.controller.abort(); parseRequest.current = null; setUnderstandingFor(null); setInferred(null); setAttemptedFor(null); setInput(event.target.value); setEdited(effectiveSource ? { ...value, title: event.target.value } : null); setManualConfirmed(!!effectiveSource); setNotice(""); }} onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); if (!parseRequest.current) event.currentTarget.form?.requestSubmit(); } }} /></div>
-      <div className="capture-preview"><strong className="preview-title">{value.title || "title missing"}</strong><span className="preview-meta"><span>${graph.projects.find(project => project.id === value.projectId)?.name ?? "choose project"}</span><span>@{graph.areas.find(area => area.id === value.areaId)?.name ?? "choose area"}</span>{(value.dates.start || value.dates.end) && <span>{value.dates.start ? previewDate(value.dates.start) : ""}{value.dates.start && value.dates.end ? " → " : value.dates.end ? "→ " : ""}{value.dates.end ? previewDate(value.dates.end) : ""}</span>}{value.tags.map(tag => <span key={tag}>[{tag}]</span>)}{value.priority !== "none" && <span>{value.priority}</span>}{value.recurrenceRule && <span>every {value.recurrenceRule.interval} {value.recurrenceRule.frequency}</span>}{effectiveSource && <span>{effectiveSource.source} · linked</span>}</span></div>
-      <details className="capture-fields" open={!!draft || !!effectiveSource || errors.length > 0 || parserWarnings.length > 0 || undefined}><summary aria-label="Edit fields">edit fields</summary><TaskFields value={value} graph={graph} disabled={pending || understanding || uncertain} onChange={next => { setEdited(next); setNotice(""); }} /></details>
-      {[...new Set([...parserWarnings, ...errors])].map((warning, index) => <p className="resolution-warning" key={index}>{warning}</p>)}
-      {edited && !manualConfirmed && <button type="button" className="button" disabled={pending || uncertain} onClick={() => setManualConfirmed(true)}>Use edited fields</button>}
-      <InlineError error={taskMutation.error ?? mutation.error} />{notice && <p role="alert" className="error-text">{notice}</p>}{knownTaskId && <p className="muted">Confirmed Task ID: {knownTaskId}</p>}
-      {!online && <p className="resolution-warning">Offline · Save a draft to keep this input on this device.</p>}
-      {understanding && <p role="status" className="muted">understanding…</p>}
-      <div className="dialog-actions terminal-actions"><button type="button" aria-label={draft ? "Update draft" : "Save draft"} className="text-button" disabled={!input.trim() || pending || understanding || uncertain} onClick={() => void saveDraft()}>{pending && finalizing ? "saving…" : draft ? "update draft" : "save draft"}</button>{canInfer && <button type="button" className="text-button" disabled={pending || understanding || uncertain} onClick={() => void understand()}>understand input</button>}<button className="text-button terminal-create" aria-label={taskMutation.isPending ? "Creating task" : "Create task"} disabled={!online || !!(draft && queued.some(entry => entry.draft.id === draft.id)) || !ready || pending || understanding || uncertain}>{taskMutation.isPending ? "creating…" : "create"} →</button></div>
-      <p className="muted capture-hint keyboard-hint">Enter create · Shift Enter new line</p>
-      {uncertain && persistence && <button type="button" className="text-button danger-text" onClick={() => setDiscard(true)}>Discard inspected capture</button>}
-      {(draft || effectiveSource) && <details className="capture-fields"><summary>Link existing task</summary><p className="muted">Creation unconfirmed? Check Notion, then paste the existing task ID.</p><label>Existing Notion task ID<input aria-label="Existing Notion task ID" value={recoveryId} onChange={event => setRecoveryId(event.target.value)} disabled={pending} /></label><label className="checkbox-label"><input type="checkbox" checked={inspected} onChange={event => setInspected(event.target.checked)} disabled={pending} />I checked this task in Notion. It matches this input.</label><button type="button" className="button" disabled={!online || !inspected || !recoveryId.trim() || pending} onClick={() => void reconcile()}>Verify and link</button></details>}
+      <p role="status" className="accent">{created.existing ? t("ui.already_linked") : t("ui.synced_to_notion")} / {created.task.title}</p>
+      {created.warnings.map((warning, index) => <p role="alert" className="error-text" key={index}>{tx(warning)}</p>)}
+      {notice && <p role="alert" className="error-text">{tx(notice)}</p>}
+      <div className="dialog-actions"><a className="button" href={created.task.url} target="_blank" rel="noopener noreferrer">{t("ui.open_in_notion")}</a><button className="button primary" disabled={pending} onClick={() => onOpenChange(false)}>{t("ui.done_e9b450d")}</button></div>
+    </div> : added ? <div className="creation-result"><p role="status" className="accent">{t("ui.task_added")}{" "}{value.title}</p><div className="dialog-actions"><button className="button primary" onClick={() => onOpenChange(false)}>{t("ui.done_e9b450d")}</button></div></div> : <form onSubmit={event => { event.preventDefault(); void create(); }}>
+      <div className="capture-input"><span aria-hidden="true">{">"}</span><textarea rows={2} aria-label={t("ui.task_input")} placeholder={t("ui.what_needs_doing")} value={input} maxLength={10000} disabled={pending || uncertain} autoFocus onChange={event => { parseRequest.current?.controller.abort(); parseRequest.current = null; setUnderstandingFor(null); setInferred(null); setAttemptedFor(null); setInput(event.target.value); setEdited(effectiveSource ? { ...value, title: event.target.value } : null); setManualConfirmed(!!effectiveSource); setNotice(""); }} onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); if (!parseRequest.current) event.currentTarget.form?.requestSubmit(); } }} /></div>
+      <div className="capture-preview"><strong className="preview-title">{value.title || t("ui.title_missing")}</strong><span className="preview-meta"><span className="meta-chip meta-project">${graph.projects.find(project => project.id === value.projectId)?.name ?? t("ui.choose_project")}</span><span className="meta-chip meta-area">@{graph.areas.find(area => area.id === value.areaId)?.name ?? t("ui.choose_area")}</span>{(value.dates.start || value.dates.end) && <span className="task-dates"><DateChips start={value.dates.start} end={value.dates.end} formatDate={date => previewDate(date, locale)} /></span>}{value.tags.map(tag => <span key={tag}>[{tag}]</span>)}{value.priority !== "none" && <span>{tx(value.priority)}</span>}{value.recurrenceRule && <span>{t("ui.every")}{" "}{value.recurrenceRule.interval} {value.recurrenceRule.frequency}</span>}{effectiveSource && <span>{effectiveSource.source} {" "}{t("ui.linked_4e7a5ab")}</span>}</span></div>
+      <details className="capture-fields" open={!!draft || !!effectiveSource || errors.length > 0 || parserWarnings.length > 0 || undefined}><summary aria-label={t("ui.edit_fields")}>{t("ui.edit_fields_4be4662")}</summary><TaskFields value={value} graph={graph} disabled={pending || understanding || uncertain} onChange={next => { setEdited(next); setNotice(""); }} /></details>
+      {[...new Set([...parserWarnings, ...errors])].map((warning, index) => <p className="resolution-warning" key={index}>{tx(warning)}</p>)}
+      {edited && !manualConfirmed && <button type="button" className="button" disabled={pending || uncertain} onClick={() => setManualConfirmed(true)}>{t("ui.use_edited_fields")}</button>}
+      <InlineError error={taskMutation.error ?? mutation.error} />{notice && <p role="alert" className="error-text">{tx(notice)}</p>}{knownTaskId && <p className="muted">{t("ui.confirmed_task_id")}{" "}{knownTaskId}</p>}
+      {!online && <p className="resolution-warning">{t("ui.offline_save_a_draft_to_keep_this_input_on_this_device")}</p>}
+      {understanding && <p role="status" className="muted">{t("ui.understanding")}</p>}
+      <div className="dialog-actions terminal-actions"><button type="button" aria-label={draft ? t("ui.update_draft") : t("ui.save_draft")} className="text-button" disabled={!input.trim() || pending || understanding || uncertain} onClick={() => void saveDraft()}>{pending && finalizing ? t("ui.saving") : draft ? t("ui.update_draft_3b9c21e") : t("ui.save_draft_49a6996")}</button>{canInfer && <button type="button" className="text-button" disabled={pending || understanding || uncertain} onClick={() => void understand()}>{t("ui.understand_input")}</button>}<button className="text-button terminal-create" aria-label={taskMutation.isPending ? t("ui.creating_task") : t("ui.create_task")} disabled={!online || !!(draft && queued.some(entry => entry.draft.id === draft.id)) || !ready || pending || understanding || uncertain}>{taskMutation.isPending ? t("ui.creating") : t("ui.create")} →</button></div>
+      <p className="muted capture-hint keyboard-hint">{t("ui.enter_create_shift_enter_new_line")}</p>
+      {uncertain && persistence && <button type="button" className="text-button danger-text" onClick={() => setDiscard(true)}>{t("ui.discard_inspected_capture")}</button>}
+      {(draft || effectiveSource) && <details className="capture-fields"><summary>{t("ui.link_existing_task")}</summary><p className="muted">{t("ui.creation_unconfirmed_check_notion_then_paste_the_existing_task_id")}</p><label>{t("ui.existing_notion_task_id")}<input aria-label={t("ui.existing_notion_task_id")} value={recoveryId} onChange={event => setRecoveryId(event.target.value)} disabled={pending} /></label><label className="checkbox-label"><input type="checkbox" checked={inspected} onChange={event => setInspected(event.target.checked)} disabled={pending} />{t("ui.i_checked_this_task_in_notion_it_matches_this_input")}</label><button type="button" className="button" disabled={!online || !inspected || !recoveryId.trim() || pending} onClick={() => void reconcile()}>{t("ui.verify_and_link")}</button></details>}
     </form>}
-  </Modal><ConfirmDialog open={discard} onOpenChange={setDiscard} title="Discard this inspected capture?" description="Check Notion first. This permanently discards the input and allows a new capture. The Notion task stays." onConfirm={async () => { await guardedDiscard(); }} /></>;
+  </Modal><ConfirmDialog open={discard} onOpenChange={setDiscard} title={t("ui.discard_this_inspected_capture")} description={t("ui.check_notion_first_this_permanently_discards_the_input_and_allows_a_new_capture_the_notion_task")} onConfirm={async () => { await guardedDiscard(); }} /></>;
 }
 export const Capture = TaskComposer;
 function storedOutcome(input: string): { taskId?: string } | null {
@@ -239,4 +242,4 @@ function storedOutcome(input: string): { taskId?: string } | null {
 }
 
 
-function previewDate(date: string) { return new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", timeZone: "UTC" }).format(new Date(`${date}T12:00:00Z`)); }
+function previewDate(date: string, locale: string) { return new Intl.DateTimeFormat(locale, { day: "2-digit", month: "2-digit", timeZone: "UTC" }).format(new Date(`${date}T12:00:00Z`)); }

@@ -1,4 +1,5 @@
 "use client";
+import { useTranslation } from "./localization";
 
 import * as Dialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
@@ -23,16 +24,17 @@ export function Modal({
   modal?: boolean;
   style?: CSSProperties;
 }) {
+  const { t } = useTranslation();
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange} modal={modal}>
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-overlay" />
         <Dialog.Content className={`dialog ${className}`} style={style} onInteractOutside={event => {
-          if (className.includes("task-drawer") && (event.target as HTMLElement)?.closest("[data-task-id],.mutation-toasts,.mutation-sync")) event.preventDefault();
+          if (className.includes("task-drawer") && (event.target as HTMLElement)?.closest("[data-task-id],.mutation-toasts,.completion-toasts,.mutation-sync")) event.preventDefault();
         }} {...(!description ? { "aria-describedby": undefined } : {})}>
           <div className="dialog-heading">
             <Dialog.Title>{title}</Dialog.Title>
-            <Dialog.Close className="icon-button" aria-label="Close">
+            <Dialog.Close className="icon-button" aria-label={t("ui.close")}>
               <X size={16} />
             </Dialog.Close>
           </div>
@@ -60,6 +62,7 @@ export function ConfirmDialog({
   onConfirm: () => Promise<unknown>;
   optimistic?: boolean;
 }) {
+  const { t, text: tx } = useTranslation();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   return (
@@ -76,7 +79,7 @@ export function ConfirmDialog({
     >
       {error && (
         <p className="error-text" role="alert">
-          {error}
+          {tx(error)}
         </p>
       )}
       <div className="dialog-actions">
@@ -86,8 +89,7 @@ export function ConfirmDialog({
           disabled={pending}
           onClick={() => onOpenChange(false)}
         >
-          Cancel
-        </button>
+          {t("ui.cancel")}</button>
         <button
           className="button danger"
           disabled={pending}
@@ -111,7 +113,7 @@ export function ConfirmDialog({
             }
           }}
         >
-          {pending ? "Deleting…" : "Delete"}
+          {pending ? t("ui.deleting") : t("ui.delete_f6fdbe4")}
         </button>
       </div>
     </Modal>
@@ -138,11 +140,10 @@ export function EmptyState({
   );
 }
 export function InlineError({ error }: { error: unknown }) {
+  const { t, text: tx } = useTranslation();
   return error ? (
     <p className="error-text" role="alert">
-      {error instanceof Error
-        ? error.message
-        : "Something went wrong. Try again."}
+      {error instanceof Error ? tx(error.message) : t("ui.something_went_wrong_try_again")}
     </p>
   ) : null;
 }

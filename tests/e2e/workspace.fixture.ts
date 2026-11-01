@@ -85,9 +85,9 @@ export async function workspace(page: Page, githubEnabled = false, contactEnable
   });
   function setTags(taskId: string, tags: string[]) { state.local.taskTags = state.local.taskTags.filter(item => item.taskId !== taskId); for (const name of tags) { let tag = state.local.tags.find(item => item.name === name); if (!tag) { tag = { id: `tag-${state.local.tags.length}`, name, color: null }; state.local.tags.push(tag); } state.local.taskTags.push({ taskId, tagId: tag.id }); } }
   if (githubEnabled) state.local.integrations.push({ id: "repo-map", projectId: "english", source: "github", repository: "owner/repo", createdAt: instant });
-  if (open) { await page.goto("/"); await expect(page.locator("h1")).toHaveText(/Today/); }
+  if (open) { await page.goto("/?view=today"); await expect(page.locator("h1")).toHaveText(/Today/); await expect(page.locator(".boot-screen")).toHaveCount(0); const dismiss = page.getByRole("button", { name: "Close sidebar", exact: true }); if (await dismiss.isVisible()) await page.getByRole("button", { name: "Collapse sidebar", exact: true }).click(); }
   return state;
 }
-export async function navigate(page: Page, command: string) { await page.keyboard.press("Control+k"); await page.getByRole("textbox", { name: "Search", exact: true }).fill(command); await page.locator(".palette-result").first().click(); }
-export async function capture(page: Page, input: string) { await page.keyboard.press("n"); await page.getByRole("textbox", { name: "Task input" }).fill(input); }
+export async function navigate(page: Page, command: string) { await expect(page.locator(".boot-screen")).toHaveCount(0); await page.keyboard.press("Control+k"); await page.getByRole("textbox", { name: "Search", exact: true }).fill(command); await page.locator(".palette-result").first().click(); }
+export async function capture(page: Page, input: string) { await expect(page.locator(".boot-screen")).toHaveCount(0); await page.keyboard.press("n"); await page.getByRole("textbox", { name: "Task input" }).fill(input); }
 
