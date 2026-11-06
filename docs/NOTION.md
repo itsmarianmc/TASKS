@@ -10,22 +10,44 @@ References: [Notion multi-source upgrade](https://developers.notion.com/guides/g
 
 Create or identify **Tasks**, **Projects** and **Areas** databases in Notion. A database is the container; its data source holds the schema and rows used by the adapter. Add the same integration to all three using Notion's sharing/connections controls, and allow reading, inserting and updating page content. Merely knowing an ID does not grant access.
 
-Configure these required properties before connecting TÆSKS:
+Configure the required properties in these tables before connecting TÆSKS. Add the optional properties for the features or Notion views you want to use.
 
-| Data source | Property | Type and target | Configuration |
+#### Tasks
+
+| Property | Notion property type | Requirement | Setup |
 | --- | --- | --- | --- |
-| Tasks | `Name` | Title | `NOTION_TASK_TITLE_PROPERTY` |
-| Tasks | `Due Date` | Date, with optional start/end range | `NOTION_TASK_DATE_PROPERTY` |
-| Tasks | `Area` | Relation to the configured **Areas** data source | `NOTION_TASK_AREA_PROPERTY` |
-| Tasks | `Project` | Relation to the configured **Projects** data source | `NOTION_TASK_PROJECT_PROPERTY` |
-| Tasks | `Highlight` | Checkbox, separate from completion | `NOTION_TASK_HIGHLIGHT_PROPERTY` |
-| Projects | Your title property | Title; inferred when unique | `NOTION_PROJECT_TITLE_PROPERTY` (optional name override) |
-| Projects | Your Areas relation, e.g. `Areas` | Relation to the configured **Areas** data source; inferred when unique | `NOTION_PROJECT_AREA_PROPERTY` (optional name override) |
-| Areas | Your title property | Title; inferred when unique | `NOTION_AREA_TITLE_PROPERTY` (optional name override) |
+| `Name` | Title | Required | Use the database's built-in title property. |
+| `Due Date` | Date | Required | Supports a single date or a start/end range. The cell can be empty. |
+| `Area` | Relation → **Areas** | Required | Set the relation limit to **1 page**. |
+| `Project` | Relation → **Projects** | Required | Set the relation limit to **1 page**. The selected project must include the task's area. |
+| `Highlight` | Checkbox | Required | Create a separate checkbox for highlighting tasks. |
+| `Done` or `Status` | Checkbox or Status | Required for completion and reopening | Choose one completion property. See [Completion and optional metadata](#completion-and-optional-metadata) for mapping. |
 
-Property names are literal identifiers, not UI translations. Existing German names may be configured unchanged. Environment defaults are shown above; persisted Settings mappings can override them. The adapter inspects types and relation targets and reports missing or ambiguous fields. It never creates databases, properties or status options for you.
+#### Projects
 
-For example, link project **English** to area **Homework**. A normal task **Prepare presentation** must link to that project and that same area. A project can belong to several areas, but each normal task needs exactly one valid area and one project, with matching membership. The reverse relation properties Notion may create on Areas/Projects are not additional required fields; TÆSKS derives area project lists from the project-to-area relation. `Open Projects`, rollups, formulas and a `Tasks` reverse relation are not prerequisites.
+| Property | Notion property type | Requirement | Setup |
+| --- | --- | --- | --- |
+| `Name` | Title | Required | Use the database's built-in title property. |
+| `Status` | Select (single-choice dropdown) or Status | Optional metadata | Define the choices or status options for your workflow. |
+| `Priority` | Select (single-choice dropdown) or Status | Optional metadata | Define the priority options for your workflow. |
+| `Areas` | Relation → **Areas** | Required | Use **No limit** to allow projects to belong to multiple areas. |
+| `Tasks` | Relation → **Tasks** | Optional in Notion | Enable the two-way relation on **Tasks** → `Project` and name the reverse property `Tasks`. |
+| `Deadline` | Date | Optional metadata | Use for project dates or date ranges. |
+
+#### Areas
+
+| Property | Notion property type | Requirement | Setup |
+| --- | --- | --- | --- |
+| `Name` | Title | Required | Use the database's built-in title property. |
+| `Type` | Select (single-choice dropdown), Status, or Text | Optional metadata | Use Select for a dropdown of area categories. |
+| `Open Projects` | Rollup (numeric result) | Optional in Notion | Choose the `Projects` relation, a numeric Formula property on Projects that flags open projects, and **Sum** as the calculation. |
+| `Projects` | Relation → **Projects** | Optional in Notion | Enable the two-way relation on **Projects** → `Areas` and name the reverse property `Projects`. |
+| `Tasks` | Relation → **Tasks** | Optional in Notion | Enable the two-way relation on **Tasks** → `Area` and name the reverse property `Tasks`. |
+| `Database` | Relation → a database of your choice | Optional in Notion | Create it only if you want to link areas to another database in your workspace. |
+
+See [Notion property types](https://www.notion.com/help/database-properties) and [Notion relations and rollups](https://www.notion.com/help/relations-and-rollups) for instructions on adding these properties.
+
+TÆSKS derives area project lists from the required Projects `Areas` relation. You can keep existing property names, including names in other languages. Map required properties in Settings or with the environment variables below, and use the environment variables for optional metadata name overrides. Settings mappings take precedence over environment defaults. The adapter checks property types and relation targets and reports missing or ambiguous mappings.
 
 Set the four required variables below, recreate the container, then open **Settings & diagnostics → Notion diagnostics**. Confirm all sources and fields resolve before creating a task. A normal Notion database URL contains a database ID; a selected view ID is not a data-source ID. TÆSKS discovers the data source when the database contains exactly one. If it contains multiple sources, copy each intended source's ID from Notion's data-source controls/API and set the corresponding explicit variable below. The adapter checks that it belongs to the configured database.
 
@@ -35,7 +57,7 @@ A separate Tasks checkbox (for example `Done`) or status property (for example `
 
 For a checkbox, true means completed and false means open. For status, select an existing completed value and reopened value when inference is ambiguous, using Settings or `NOTION_TASK_COMPLETION_VALUE` / `NOTION_TASK_REOPEN_VALUE`. All options in a recognized completed status group read as complete. A reopened value must not belong to that completed set. TÆSKS does not invent options or guess among ambiguous values.
 
-Project Status (`status` or `select`), Priority (`select` or `status`), Date/Deadline (`date`) and Area Type (`select`, `status` or `rich_text`) are optional and conservatively discovered. Their explicit name variables are listed below. Task tags, priority, notes, uploads, reminders, recurrence and Someday are TÆSKS-local additions and do not require new Notion properties. Dates use `APP_TIMEZONE` (default `Europe/Berlin`); date-only values remain calendar days. A single entered deadline is stored with a start, because the adapter rejects deadline-only writes that Notion cannot represent faithfully.
+Task tags, priority, notes, uploads, reminders, recurrence and Someday are TÆSKS-local additions. Dates use `APP_TIMEZONE` (default `Europe/Berlin`), and date-only values remain calendar days. A single entered deadline is stored with a start because the adapter rejects deadline-only writes that Notion cannot represent faithfully.
 
 These instructions are grounded in `src/lib/server/notion.ts` schema resolution and mocked adapter tests. They are not a claim of live synchronization in the current environment. The following sections describe the detailed existing contracts.
 
@@ -43,7 +65,7 @@ Required: `NOTION_TOKEN`, `NOTION_TASKS_DATABASE_ID`, `NOTION_PROJECTS_DATABASE_
 
 Optional `NOTION_TASKS_DATA_SOURCE_ID`, `NOTION_PROJECTS_DATA_SOURCE_ID`, `NOTION_AREAS_DATA_SOURCE_ID` are required when their database contains multiple data sources. An explicit data source must belong to its configured database. TÆSKS will never pick the first of several sources.
 
-Task property defaults: `Name` (title), `Due Date` (date), `Area` (relation), `Project` (relation), `Highlight` (checkbox). Names are configurable by `.env.example` variables or persisted Settings mappings. Project/area titles can be inferred from their unique title properties; project area relation is inferred from its unique relation target. An explicit wrong property, wrong type, wrong relation target or ambiguous relation disables writes with diagnostics. Project `Status`, `Priority`, `Date`/`Deadline` and area `Type` are mapped when available. Explicit metadata names use `NOTION_PROJECT_STATUS_PROPERTY`, `NOTION_PROJECT_PRIORITY_PROPERTY`, `NOTION_PROJECT_DATE_PROPERTY`, `NOTION_AREA_TYPE_PROPERTY`.
+Task property name overrides in [`.env.example`](../.env.example) are `NOTION_TASK_TITLE_PROPERTY`, `NOTION_TASK_DATE_PROPERTY`, `NOTION_TASK_AREA_PROPERTY`, `NOTION_TASK_PROJECT_PROPERTY` and `NOTION_TASK_HIGHLIGHT_PROPERTY`. Project and area titles are inferred from their unique title properties, and the project area relation is inferred from its unique relation target. Use `NOTION_PROJECT_TITLE_PROPERTY`, `NOTION_PROJECT_AREA_PROPERTY` and `NOTION_AREA_TITLE_PROPERTY` for explicit overrides. An invalid or ambiguous mapping disables writes and is reported in diagnostics. Optional metadata name overrides are `NOTION_PROJECT_STATUS_PROPERTY`, `NOTION_PROJECT_PRIORITY_PROPERTY`, `NOTION_PROJECT_DATE_PROPERTY` and `NOTION_AREA_TYPE_PROPERTY`.
 
 Completion candidates are checkbox/status properties excluding the mapped Highlight property. No candidate means completion disabled. Several candidates require an explicit Settings selection. Status group names (Done/Complete and To-do, including recognized German names) identify completed/open options. A unique option or unique recognized semantic option can be selected automatically; ambiguous values require explicit completed/reopened mappings. All options in a recognized completed group read as completed. Explicit reopened values cannot be part of the completed set. No options are invented. Ordinary CRUD remains available when completion cannot be inferred.
 
