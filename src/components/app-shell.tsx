@@ -68,35 +68,43 @@ const serverReady = () => false;
 
 export function AppShell({ initialView, initialLocal, initialGraph, initialConfig }: { initialView?: string; initialLocal?: LocalSnapshot; initialGraph?: NotionGraphResponse; initialConfig?: PublicConfig } = {}) {
   const local = useLocal(initialLocal);
-  const graphQuery = useGraph(initialGraph);
   const hydrated = useSyncExternalStore(subscribeHydration, clientReady, serverReady);
+  const localReady = !!local.data && (local.isFetchedAfterMount || !!initialLocal);
+  const graphQuery = useGraph(initialGraph, localReady);
+  const notionSettled = localReady && graphQuery.initialTaskCheck !== "pending";
+  const config = useConfig(initialConfig, notionSettled);
+  const configSettled = notionSettled && (!!config.data || config.isError);
+  const [opened, setOpened] = useState(false);
   const online = useOnline();
   const [restoredGraph] = useState(initialGraph ?? graphQuery.data);
   const deviceDrafts = useDeviceDrafts();
-  const startupQueries = {
-    github: useGitHub(),
-    contact: useContact(),
-    unreadContact: useContact({ ...defaultContactOptions, filter: "unread" }),
-    config: useConfig(initialConfig),
-  };
   const startupView = initialView ?? (local.data?.preferences.lastView === "inbox" ? "overview" : local.data?.preferences.lastView) ?? "overview";
   const context = projectContext(startupView);
   const mappedRepository = local.data?.integrations.find(value => value.projectId === context?.projectId)?.repository ?? "";
+  const dashboardRequired = ["inbox", "github", "settings"].includes(startupView);
+  const startupQueries = {
+    github: useGitHub(1, configSettled && dashboardRequired || opened),
+    config,
+  };
   const repositoryQueries = [
-    useGitHubSection(mappedRepository, "issues"), useGitHubSection(mappedRepository, "pulls"),
-    useGitHubSection(mappedRepository, "actions"), useGitHubSection(mappedRepository, "commits"),
+    useGitHubSection(mappedRepository, "issues", 1, configSettled), useGitHubSection(mappedRepository, "pulls", 1, configSettled),
+    useGitHubSection(mappedRepository, "actions", 1, configSettled), useGitHubSection(mappedRepository, "commits", 1, configSettled),
   ];
+  const githubSettled = configSettled && (!dashboardRequired || !startupQueries.github.isPending) && (!mappedRepository || repositoryQueries.every(query => !query.isPending));
+  const contact = useContact(defaultContactOptions, githubSettled && ["contact", "settings"].includes(startupView) || opened);
+  const unreadContact = useContact({ ...defaultContactOptions, filter: "unread" }, githubSettled && ["inbox", "settings"].includes(startupView) || opened);
+  const allStartupQueries = { ...startupQueries, contact, unreadContact };
   const needsRead = (query: { data: unknown; isPending: boolean }) => !query.data && query.isPending;
   const sourcePending =
     needsRead(startupQueries.config) ||
     (["inbox", "github", "settings"].includes(startupView) && needsRead(startupQueries.github)) ||
-    (["contact", "settings"].includes(startupView) && needsRead(startupQueries.contact)) ||
-    (["inbox", "settings"].includes(startupView) && needsRead(startupQueries.unreadContact)) ||
+    (["contact", "settings"].includes(startupView) && needsRead(contact)) ||
+    (["inbox", "settings"].includes(startupView) && needsRead(unreadContact)) ||
     (!!mappedRepository && repositoryQueries.some(needsRead));
   const readState = (query: { data: unknown; isPending: boolean; error: unknown }): "pending" | "error" | "ready" => needsRead(query) ? "pending" : query.error ? "error" : "ready";
   const diagnosticsFail = (data?: { diagnostics: { status: string }[] }) => data?.diagnostics.some(item => item.status === "error" || item.status === "unavailable");
   const githubReads = [...(["inbox", "github", "settings"].includes(startupView) ? [startupQueries.github] : []), ...repositoryQueries.filter(() => !!mappedRepository)];
-  const contactReads = [startupQueries.contact, startupQueries.unreadContact].filter((_query, index) => index === 0 ? ["contact", "settings"].includes(startupView) : ["inbox", "settings"].includes(startupView));
+  const contactReads = [contact, unreadContact].filter((_query, index) => index === 0 ? ["contact", "settings"].includes(startupView) : ["inbox", "settings"].includes(startupView));
   const sources: { name: "GitHub" | "Contact"; state: StartupRead }[] = [];
   if (["inbox", "github", "settings"].includes(startupView) || mappedRepository) sources.push({ name: "GitHub", state: githubReads.some(needsRead) ? "pending" : githubReads.some(query => query.error || diagnosticsFail(query.data)) ? "error" : startupQueries.github.data?.configured === false ? "disabled" : "ready" });
   if (contactReads.length) sources.push({ name: "Contact", state: contactReads.some(needsRead) ? "pending" : contactReads.some(query => query.error || diagnosticsFail(query.data)) ? "error" : "ready" });
@@ -106,14 +114,13 @@ export function AppShell({ initialView, initialLocal, initialGraph, initialConfi
     graphQuery.error || diagnosticsFail(graphQuery.data) ? "error" : graphQuery.savedData || !online ? "saved" :
     graphQuery.data?.diagnostics.some(item => item.source === "notion" && item.status === "disabled") ? "disabled" : "ready";
   // Release once. Later background refreshes must never hide or remount the shell.
-  const [opened, setOpened] = useState(false);
   const ready = hydrated && !!local.data && graphQuery.initialTaskCheck !== "pending" && !needsRead(graphQuery) && !sourcePending;
   const status = startupStatus({ local: local.data ? "ready" : local.error && !local.isFetching ? "error" : "pending", notion: notionState,
     cachedGraph: !!restoredGraph?.graph.syncedAt, savedData: savedGraph || savedLocalContent, graph: graphQuery.data?.graph, config: readState(startupQueries.config), configRequired: !initialConfig, sources, view: startupView, prepared: ready });
   if (ready && !status.blocked && !opened) setOpened(true);
   const showWorkspace = !!local.data && (opened || (ready && !status.blocked));
-  return <StartupLoader steps={status.steps} ready={showWorkspace} onRetry={status.blocked ? () => { void (status.blocked === "local" ? local.refetch() : graphQuery.refetch()); } : undefined}>
-    {showWorkspace && local.data && <Workspace local={mergeDeviceDrafts(local.data, deviceDrafts)} deviceDrafts={deviceDrafts} initialView={initialView} graphQuery={graphQuery} startupQueries={startupQueries} />}
+  return <StartupLoader steps={status.steps} ready={showWorkspace} onRetry={status.blocked ? () => { void local.refetch(); } : undefined}>
+    {showWorkspace && local.data && <Workspace local={mergeDeviceDrafts(local.data, deviceDrafts)} deviceDrafts={deviceDrafts} initialView={initialView} graphQuery={graphQuery} startupQueries={allStartupQueries} />}
   </StartupLoader>;
 }
 

@@ -1,3032 +1,417 @@
-Du bist der Lead Engineer und Product Designer für ein neues Projekt namens:
+# Original product specification
 
-TÆSKS
+This is the original implementation brief, edited into English and condensed to remove repetition. It records requirements and examples, **not verification that every feature works**. The original project began in an empty folder; its execution/deployment instructions are historical, not authorization for later agents to deploy or change external data. Current behavior and verification limits are documented in the individual integration and verification guides.
 
-Du startest in einem vollständig leeren Ordner.
+## 0. Original working method: sequential agents
 
-Deine Aufgabe ist NICHT, mir nur Beispielcode, ein Mockup oder ein teilweise funktionierendes Grundgerüst zu erstellen.
+Divide the original build into meaningful specialist tasks, using only one subagent at a time. Start an agent, wait for completion, inspect its changes, check TypeScript and architectural compatibility, integrate the result, and only then start the next. Suggested order: architecture/data model, design/UI, Notion, parser, core task UX, GitHub, Contact, local persistence/resources, PWA/mobile, security/reliability, Docker/deployment, final QA. The lead engineer owns integration and regression prevention; this specification takes precedence over agent assumptions.
 
-Du sollst die vollständige Anwendung von Grund auf planen, implementieren, testen, dockerisieren und bis zu einem tatsächlich lauffähigen Zustand bringen.
+## 1. Product idea
 
-Am Ende muss aus diesem leeren Ordner eine produktionsnahe Web-App entstehen, die als EIN Docker-Image gebaut und als EIN Docker-Container betrieben werden kann.
+TÆSKS is a personal central task and productivity application. The Æ is intentional branding. Study the supplied init.Tasks images/videos for information architecture, typography, density, trees, tasks, inline metadata, colors, Quick Add, mobile navigation, projects, notes, attachments, sidebar and keyboard interaction. Adopt the interaction model and density while establishing a separate identity, drawing inspiration from init.Tasks, Linear, Things and modern terminal interfaces. Avoid a generic SaaS administration dashboard.
 
-==================================================
-0. WICHTIGE ARBEITSWEISE: SUBAGENTEN
-==================================================
+## 2. Design principles
 
-Du sollst die Arbeit in sinnvolle Teilbereiche zerlegen und dafür Subagenten verwenden.
+Use a terminal-inspired, monospace-first, compact, keyboard-first, hierarchical interface. Prioritize content, speed, calmness and readable density. Use few cards, minimal borders/containers and inline metadata. Provide complete light/dark themes, responsive layouts and equal desktop/mobile usability. Avoid tile dashboards, oversized statistics/buttons, excessive radii, pervasive glass effects, generic component-library demos, decorative icons and excessive spacing. Radix/shadcn primitives may support accessibility but must use TÆSKS styling.
 
-SEHR WICHTIG:
+## 3. Branding
 
-Subagenten dürfen NICHT parallel arbeiten.
+Use minimalist text/symbol branding with a recurring Æ, without elaborate illustrations. Suggested accent: mint/turquoise/terminal green. Semantic colors: red for overdue/errors, orange/yellow for deadlines/warnings, blue for links/metadata, purple for GitHub/secondary context and gray for notes/comments. Adapt contrast to both themes. Use a free bundled monospace font or a robust system stack; do not depend on proprietary fonts.
 
-Arbeite strikt sequenziell:
+## 4. Technology
 
-1. Subagent starten
-2. Warten, bis dieser vollständig fertig ist
-3. Ergebnis prüfen
-4. Ergebnis in das Hauptprojekt integrieren
-5. Erst danach den nächsten Subagenten starten
+Preferred stack: Next.js App Router, TypeScript, React, Tailwind CSS, accessible Radix primitives, Zod, TanStack Query or an equivalent query abstraction, official Notion SDK, Octokit, chrono-node, date-fns, Drizzle and SQLite. Use a normal Node.js server, not Edge runtime for SQLite or other Node APIs.
 
-Kein zweiter Subagent darf arbeiten, während ein vorheriger Subagent noch aktiv ist.
+## 5. Docker architecture
 
-Empfohlene Reihenfolge:
+One image and one application container, with SQLite rather than additional PostgreSQL/Redis services. No Docker-in-Docker. Persist `/app/data`, including `/app/data/taesks.db` and `/app/data/uploads/`, using a volume or bind mount. Internal port 3000 maps to host **2015** (`T=20, A=1, E=5`). Provide a multi-stage Dockerfile, Compose, `.dockerignore`, `.env.example` and health check. The original acceptance commands were `docker compose build` and `docker compose up -d`, followed by `http://HOST:2015`.
 
-1. Architecture / Data Model Agent
-2. Design System / UI Agent
-3. Notion Integration Agent
-4. Natural Language Parser Agent
-5. Core Task UX Agent
-6. GitHub Integration Agent
-7. Contact Inbox Integration Agent
-8. Local Persistence / Notes / Attachments Agent
-9. PWA / Responsive / Mobile Agent
-10. Security / Reliability Agent
-11. Docker / Deployment Agent
-12. Final QA / Testing Agent
+## 6. External access protection
 
-Du bist als Hauptagent dafür verantwortlich, dass die Ergebnisse zusammenpassen.
+No built-in accounts, registration, OAuth or password screen. A reverse proxy, VPN or internal infrastructure restricts access. Still enforce server-only secrets, validated routes, appropriate CSRF boundaries, secure headers and XSS protection. Never inject unsafe HTML.
 
-Nach jedem Subagenten:
-- Änderungen prüfen
-- TypeScript-Fehler prüfen
-- Architektur gegen diese Spezifikation prüfen
-- bestehende Funktionen nicht regressieren lassen
-- erst danach fortfahren
+## 7. Data source ownership
 
-Die Spezifikation in diesem Prompt hat Vorrang vor Vermutungen der Subagenten.
+Notion is the source of truth for core tasks. GitHub, the separate Contact PostgREST API and TÆSKS SQLite have distinct responsibilities. Issues and contact submissions remain external items until the user explicitly creates a Notion task from one.
 
-==================================================
-1. PRODUKTIDEE
-==================================================
+## 8. Notion data model
 
-TÆSKS ist meine persönliche zentrale Task- und Productivity-App.
+Use Tasks, Projects and Areas. The supplied database screenshots describe the original schema. The hierarchy is Area → Project → Task. Each normal task has exactly one area and one project; the project must belong to that area. An area may contain multiple projects. Original school examples preserve user vocabulary:
 
-Der Name ist absichtlich:
+| Area | Project | Task |
+| --- | --- | --- |
+| Hausaufgaben | Physik | Lorentzkraft berechnen |
+| Hausaufgaben | Englisch | Make Presentation |
 
-TÆSKS
+Area is the organizational category, project is the concrete project/subject, and task is the action.
 
-Das Æ soll ein Bestandteil des Brandings sein.
+## 9. Tasks database
 
-Die App ist stark von der Bedienphilosophie und Informationsdichte von init.Tasks inspiriert.
+Original visible properties: `Name` (title), `Due Date` (date/range), `Area` (relation to Areas), `Project` (relation to Projects), `Highlight` (checkbox). Example range: October 3, 2026 → October 18, 2026. Read and validate the remote schema; keep property names configurable with these defaults:
 
-Ich werde dir zusätzlich Referenzbilder und ggf. Videos von init.Tasks geben.
-
-Diese Referenzen sind sehr wichtig.
-
-Analysiere sie sorgfältig hinsichtlich:
-
-- Informationsarchitektur
-- Typografie
-- Dichte
-- Tree Views
-- Task-Darstellung
-- Inline Metadata
-- Farben
-- Quick Add
-- Mobile Navigation
-- Projektansichten
-- Notes
-- Attachments
-- Sidebar
-- Tastaturbedienung
-
-ABER:
-
-Baue KEINEN pixelgenauen Klon von init.Tasks.
-
-TÆSKS soll eine eigene visuelle Identität erhalten.
-
-Übernimm das Interaction Model und die Informationsdichte, nicht die exakte Markenidentität.
-
-TÆSKS soll wirken wie eine Mischung aus:
-
-- init.Tasks
-- Linear
-- Things
-- einer modernen Terminal-Oberfläche
-
-NICHT wie ein typisches SaaS-Admin-Dashboard.
-
-==================================================
-2. GRUNDPRINZIPIEN DES DESIGNS
-==================================================
-
-Design Language:
-
-- terminal-inspired
-- monospace-first
-- content over chrome
-- sehr kompakt
-- sehr geringe visuelle Verschwendung
-- keyboard-first
-- hierarchisch
-- schnell
-- ruhig
-- technisch
-- modern
-- sehr wenige klassische Cards
-- minimale Borders
-- möglichst wenig unnötige Container
-- Inline Metadata statt großer Info-Boxen
-- starke Informationsdichte ohne unübersichtlich zu werden
-- Light und Dark Mode vollwertig
-- Responsive Design
-- PWA-fähig
-- Desktop und Mobile gleichwertig nutzbar
-
-Vermeide insbesondere:
-
-- Dashboard-Kachelwüsten
-- riesige Stat-Cards
-- unnötig große Buttons
-- übermäßige Border-Radii
-- Glassmorphism überall
-- generische shadcn-Demo-Optik
-- Marketing-SaaS-Design
-- unnötige Icons
-- riesige Abstände
-
-Primitives von Radix oder shadcn dürfen technisch verwendet werden, aber die visuelle Gestaltung muss vollständig TÆSKS entsprechen.
-
-==================================================
-3. BRANDING
-==================================================
-
-Name:
-
-TÆSKS
-
-Das Æ soll ein wiederkehrendes Brand-Element sein.
-
-Entwickle ein minimalistisches Text-/Symbolbranding.
-
-Keine komplizierte Illustration.
-
-Vorgeschlagene Grundrichtung:
-
-Accent:
-Mint / Türkis / Terminal-Grün
-
-Semantische Farben:
-
-- Mint/Türkis = primäre Aktion / TÆSKS Accent
-- Rot = Overdue / Fehler
-- Orange/Gelb = Deadline / Warnung
-- Blau = Links / Metadata
-- Lila = GitHub / optionale Sekundärinformation
-- Grau = Notes / Kommentare / sekundäre Informationen
-
-Alle Farben müssen für Dark und Light Mode angepasst werden.
-
-Nutze bevorzugt eine hochwertige Monospace-Schrift.
-
-Keine proprietäre Schrift voraussetzen.
-
-Geeignete freie/bundlebare Font verwenden oder einen robusten Monospace-Stack einsetzen.
-
-==================================================
-4. TECHNISCHER STACK
-==================================================
-
-Nutze einen modernen stabilen Fullstack-Web-Stack.
-
-Bevorzugt:
-
-- Next.js
-- TypeScript
-- App Router
-- React
-- Tailwind CSS
-- Radix UI nur für zugängliche Primitives
-- Zod
-- TanStack Query oder vergleichbare saubere Query-Abstraktion
-- official Notion SDK
-- Octokit für GitHub
-- chrono-node für Datumsparsing
-- date-fns für Datumsberechnungen
-- Drizzle ORM
-- SQLite für TÆSKS-interne Persistenz
-
-Kein Edge Runtime für Serverfunktionen, die SQLite oder Node APIs benötigen.
-
-Die App läuft als normaler Node.js-Server.
-
-==================================================
-5. DOCKER-ARCHITEKTUR
-==================================================
-
-TÆSKS selbst besteht aus:
-
-EINEM Docker-Image
-EINEM Docker-Container
-
-KEIN Docker-in-Docker.
-
-KEIN zusätzlicher PostgreSQL-Container.
-
-KEIN zusätzlicher Redis-Container, sofern nicht zwingend technisch erforderlich.
-
-Nutze für TÆSKS-eigene Persistenz SQLite.
-
-Persistente Daten:
-
-/app/data
-
-Darin z.B.:
-
-/app/data/taesks.db
-/app/data/uploads/
-
-Erstelle ein Docker Volume bzw. Bind Mount.
-
-Container intern:
-
-Port 3000
-
-Extern:
-
-Port 2015
-
-Warum 2015:
-
-T = 20
-A = 1
-E = 5
-
-Beispiel:
-
-ports:
-  - "2015:3000"
-
-Erstelle:
-
-- Dockerfile
-- docker-compose.yml
-- .dockerignore
-- .env.example
-- Healthcheck
-
-Nutze bevorzugt einen Multi-Stage Build.
-
-Am Ende muss funktionieren:
-
-docker compose build
-
-docker compose up -d
-
-Danach:
-
-http://HOST:2015
-
-==================================================
-6. KEIN LOGIN
-==================================================
-
-TÆSKS braucht KEIN eigenes Login-System.
-
-Die Anwendung wird außerhalb von TÆSKS geschützt.
-
-Gehe davon aus, dass beispielsweise Reverse Proxy, VPN oder interne Infrastruktur den Zugriff beschränkt.
-
-Implementiere deshalb:
-
-KEIN:
-- Benutzerkonto
-- Registration
-- OAuth Login
-- Passwortscreen
-
-Trotzdem:
-
-- Secrets niemals an den Client senden
-- API Tokens ausschließlich serverseitig
-- sichere Server Routes
-- Input Validation
-- CSRF-sinnvolle Architektur
-- sichere HTTP Header
-- XSS-Schutz
-- keine unsicheren HTML-Injections
-
-==================================================
-7. DATENQUELLEN
-==================================================
-
-TÆSKS verbindet mehrere Datenquellen.
-
-Sie haben unterschiedliche Aufgaben.
-
-SOURCE OF TRUTH FÜR TASKS:
-
-NOTION
-
-Weitere Quellen:
-
-GITHUB
-CONTACT POSTGREST API
-TÆSKS LOCAL SQLITE
-
-Wichtig:
-
-GitHub Issues sind NICHT automatisch Tasks.
-
-Contact Submissions sind NICHT automatisch Tasks.
-
-Nur Notion enthält die eigentlichen Tasks.
-
-Aus externen Items kann der Nutzer aber einen Notion Task erzeugen.
-
-==================================================
-8. NOTION DATENMODELL
-==================================================
-
-Es existieren drei wichtige Notion-Datenbanken:
-
-TASKS
-PROJECTS
-AREAS
-
-Ich werde dir Screenshots dieser Datenbanken geben.
-
-Analysiere die Screenshots.
-
-Grundstruktur:
-
-Area
-└── Project
-    └── Task
-
-JEDER normale Task gehört zu:
-
-genau einer Area
-und
-genau einem Project
-
-Ein Project ist mit einer Area verbunden.
-
-Eine Area kann mehrere Projects enthalten.
-
-Beispiel Schule:
-
-Area:
-Hausaufgaben
-
-Project:
-Physik
-
-Task:
-Lorentzkraft berechnen
-
-oder:
-
-Area:
-Hausaufgaben
-
-Project:
-Englisch
-
-Task:
-Make Presentation
-
-Das bedeutet:
-
-Area = Kategorie / übergeordnete Organisation
-Project = konkretes Projekt oder im Schulkontext Fach
-Task = eigentliche Aufgabe
-
-==================================================
-9. NOTION TASK DATABASE
-==================================================
-
-Aus dem aktuellen Schema sind insbesondere vorhanden:
-
-Name
-Due Date
-Area
-Project
-Highlight
-
-Die Screenshots sind die visuelle Referenz des tatsächlichen Schemas.
-
-"Due Date" ist ein Notion Date Property und kann ein Datumsintervall besitzen:
-
-start
-end
-
-Beispiel:
-
-October 3, 2026 → October 18, 2026
-
-Area ist eine Relation zur Areas Database.
-
-Project ist eine Relation zur Projects Database.
-
-Highlight ist eine Checkbox.
-
-Baue NICHT blind weitere Notion Properties hinzu.
-
-Lies das Datenbankschema über die Notion API.
-
-Mache Property-Namen konfigurierbar.
-
-.env.example soll sinnvolle Defaults besitzen, z.B.:
-
+```dotenv
 NOTION_TASK_TITLE_PROPERTY=Name
 NOTION_TASK_DATE_PROPERTY=Due Date
 NOTION_TASK_AREA_PROPERTY=Area
 NOTION_TASK_PROJECT_PROPERTY=Project
 NOTION_TASK_HIGHLIGHT_PROPERTY=Highlight
-
-Zusätzlich:
-
 NOTION_TASKS_DATABASE_ID=
 NOTION_PROJECTS_DATABASE_ID=
 NOTION_AREAS_DATABASE_ID=
 NOTION_TOKEN=
+```
 
-Falls eine Completion-/Status-Property existiert:
+Discover a plausible completion checkbox/status such as Done, Completed, Complete, Status or State. Use a unique safe candidate, otherwise require a diagnostics selection. Do not guess or automatically modify the user's schema. The current adapter never creates properties; see [Notion contracts](NOTION.md).
 
-automatisch erkennen.
+## 10. Projects database
 
-Suche z.B. nach:
+Original screenshots included Name, Status, Priority, Areas, Tasks and optional Date/Deadline. Example names: GYM, Habit Tracker, HealthSync, Notion, Paperless Chat, Portfolio, SchulPlaner, Shoply, TÆSKS and Bildende Kunst. Example status values: In Progress/Done; priorities: High/Medium/Low. Surface useful project metadata and area relations without hardcoding the example vocabulary.
 
-Done
-Completed
-Complete
-Status
-State
+## 11. Areas database
 
-oder einem anderen Checkbox-/Status-Feld.
+Original visible fields included Name, Type, Open Projects, Projects, Tasks and Database. Examples: Private, Web Development and Homelab, with Work/Personal types. Validate schemas at runtime; not every screenshot column is a required writable property.
 
-Falls genau ein plausibles Property gefunden wird:
-verwenden.
+## 12. Notion task CRUD
 
-Falls mehrere Kandidaten existieren:
-nicht raten.
+Support create/read/edit/complete/reopen, moving area/project, dates, Highlight and confirmed deletion. Only use optimistic changes with safe rollback. Failures must explain the problem and restore affected state without claiming unconfirmed success.
 
-Dann soll TÆSKS über eine Diagnostics/Settings-Ansicht die Zuordnung ermöglichen.
+## 13. Relation validation
 
-Keine Notion-Datenbankschemata automatisch verändern, außer dies wurde ausdrücklich konfiguriert.
+A project with one area may infer that area. For multiple areas, require a selection. Validate explicit parser assignments together. Never silently save incompatible pairs: explain, for example, that project “Englisch” does not belong to area “Web Development”, and require correction.
 
-==================================================
-10. PROJECT DATABASE
-==================================================
+## 14. Local persistence
 
-Aus den Referenzbildern sind u.a. sichtbar:
+Keep Notion core fields authoritative. Store additions in persistent SQLite with migrations: task metadata, notes, attachments, links, tags/task tags, saved filters, parser aliases, project integrations, external item links, Inbox drafts, preferences and optional push subscriptions. Example metadata: Notion task ID, priority, recurrence, reminder, Someday, creation/update timestamps. Use generic task/project/area resource references where appropriate.
 
-Name
-Status
-Priority
-Areas
-Tasks
-Date / Deadline, sofern vorhanden
+## 15. Notes
 
-Beispiele:
+Provide editable, well-rendered Markdown with headings, lists, code blocks, inline code and links. Store notes in SQLite and allow substantial project notes. Example content:
 
-GYM
-Habit Tracker
-HealthSync
-Notion
-Paperless Chat
-Portfolio
-SchulPlaner
-Shoply
-TÆSKS
-Bildende Kunst
-usw.
-
-Statuswerte beispielsweise:
-
-In Progress
-Done
-
-Priorität beispielsweise:
-
-High
-Medium
-Low
-
-Projects können mit Areas verknüpft sein.
-
-Nutze diese Informationen in TÆSKS.
-
-==================================================
-11. AREA DATABASE
-==================================================
-
-Aus den Referenzbildern sind u.a. sichtbar:
-
-Name
-Type
-Open Projects
-Projects
-Tasks
-Database
-
-Beispiele:
-
-Private
-Web Development
-Homelab
-
-Type beispielsweise:
-
-Work
-Personal
-
-Wieder:
-
-Schema zur Laufzeit validieren.
-Nicht unnötig hartkodieren.
-
-==================================================
-12. NOTION CRUD
-==================================================
-
-TÆSKS muss Notion Tasks vollständig verwalten können:
-
-- erstellen
-- lesen
-- bearbeiten
-- abschließen
-- wieder öffnen
-- Area ändern
-- Project ändern
-- Datum ändern
-- Highlight ändern
-- verschieben
-- löschen
-
-Löschen benötigt eine Bestätigung.
-
-Nutze Optimistic UI nur dort, wo ein sicherer Rollback existiert.
-
-Bei Fehlern:
-
-- verständliche Meldung
-- lokale Anzeige zurückrollen
-- keine inkonsistenten Zustände vortäuschen
-
-==================================================
-13. AREA / PROJECT VALIDIERUNG
-==================================================
-
-Ein Task darf nicht mit einer ungültigen Area/Project-Kombination gespeichert werden.
-
-Regeln:
-
-Wenn Project genau einer Area zugeordnet ist:
-
-Project auswählen
-→ Area automatisch auswählen
-
-Beispiel:
-
-Project = Englisch
-Project gehört zu Area = Hausaufgaben
-
-Dann:
-
-Area automatisch Hausaufgaben
-
-Wenn ein Project mehreren Areas zugeordnet sein kann:
-
-User muss passende Area wählen.
-
-Wenn Natural Language Parser sowohl Area als auch Project erkennt:
-
-Relation validieren.
-
-Falls sie nicht zusammenpassen:
-
-NICHT stillschweigend speichern.
-
-Zeige Konflikt:
-
-Project "Englisch" gehört nicht zu Area "Web Development"
-
-und verlange eine Korrektur.
-
-==================================================
-14. TÆSKS LOCAL PERSISTENCE
-==================================================
-
-Notion bleibt Source of Truth für Kern-Taskdaten.
-
-TÆSKS darf eigene Zusatzinformationen in SQLite speichern.
-
-SQLite liegt persistent unter:
-
-/app/data/taesks.db
-
-Nutze Migrationen.
-
-Speichere dort beispielsweise:
-
-task_metadata
-notes
-attachments
-links
-tags
-task_tags
-saved_filters
-parser_aliases
-project_integrations
-external_item_links
-inbox_drafts
-app_preferences
-web_push_subscriptions
-
-Beispiel task_metadata:
-
-- notion_task_id
-- priority
-- recurrence_rule
-- reminder_at
-- someday
-- created_at
-- updated_at
-
-Notes und Attachments können sich beziehen auf:
-
-- Task
-- Project
-- Area
-
-Nutze ein generisches Entity-Konzept, wenn sinnvoll.
-
-==================================================
-15. NOTES
-==================================================
-
-Notes sind ein wichtiger Bestandteil.
-
-Orientiere dich an den init.Tasks Referenzen.
-
-Notes sollen:
-
-- Full Markdown unterstützen
-- Code Blocks unterstützen
-- Links unterstützen
-- Listen unterstützen
-- Überschriften unterstützen
-- Inline Code unterstützen
-- editierbar sein
-- schön gerendert werden
-
-Notes liegen lokal in SQLite.
-
-Beispiel:
-
+```markdown
 ## Architecture
-
 Notion stays the source of truth.
-
 ### GitHub
 - PRs
 - Issues
 - Actions
-
 ### Contact API
 - unread submissions
 - create task
+```
 
-Projektseiten dürfen umfangreiche Notes enthalten.
+## 16. Attachments and links
 
-==================================================
-16. ATTACHMENTS UND LINKS
-==================================================
+Support files, images, PDFs and ordinary links. Store files in `/app/data/uploads` and metadata in SQLite. Present compact filenames, types/sizes and links rather than oversized file cards. Example: `specification.pdf 1.2 MB`, `notes.txt 3 KB`, `screenshot.png 207 KB`.
 
-TÆSKS unterstützt:
+## 17. Task details
 
-- Dateien
-- Bilder
-- PDFs
-- normale Links
+Alongside Notion fields, support local Markdown, links, attachments, reminders, recurrence, priority, tags and Someday. Detail fields: title, area, project, start, deadline, Highlight, priority, tags, reminder, repeat, notes, links, attachments, external references and delete.
 
-Uploads liegen persistent:
+## 18. Quick Add
 
-/app/data/uploads
+Quick Add is central. Natural input such as `Make Presentation in English as Homework until the 03/10/2026` should resolve the title, existing project/area, start of today and deadline of 3 October 2026. Preserve configured aliases to existing `Englisch` / `Hausaufgaben` names. Preview results before creation.
 
-Metadaten liegen in SQLite.
+## 19. Natural-language parser
 
-UI soll Dateien ähnlich kompakt anzeigen wie init.Tasks:
+Understand English and German. Required examples include:
 
-attachments 5
-
-🔗 docs.example.com
-📄 specification.pdf 1.2 MB
-📄 notes.txt 3 KB
-🖼 screenshot.png 207 KB
-
-Keine riesigen File Cards.
-
-==================================================
-17. TASK DETAILS
-==================================================
-
-Ein Task kann zusätzlich zu seinen Notion-Feldern besitzen:
-
-- Markdown Note
-- Links
-- Attachments
-- Reminder
-- Recurrence
-- Priority
-- Tags
-- Someday Flag
-
-Diese zusätzlichen Daten dürfen lokal in TÆSKS gespeichert werden.
-
-Task Detail Ansicht:
-
-Task Name
-
-Area
-Project
-
-Start
-Deadline
-
-Highlight
-
-Priority
-Tags
-
-Reminder
-Repeat
-
-Notes
-
-Links
-Attachments
-
-External references
-
-Delete
-
-==================================================
-18. QUICK ADD IST DIE WICHTIGSTE INTERAKTION
-==================================================
-
-Das Quick Add Input ist eines der zentralen Features der gesamten Anwendung.
-
-Es soll sich stark an der Philosophie von init.Tasks orientieren.
-
-Der User tippt natürliche Sprache.
-
-Beispiel:
-
-Make Presentation in English as Homework until the 03/10/2026
-
-TÆSKS erkennt:
-
-Title:
-Make Presentation
-
-Project:
-Englisch
-
-Area:
-Hausaufgaben
-
-Start:
-Today
-
-Deadline:
-03.10.2026
-
-==================================================
-19. NATURAL LANGUAGE PARSER
-==================================================
-
-Der Parser muss Deutsch UND Englisch verstehen.
-
-Beispiele:
-
+```text
 Make Presentation in English as Homework until Friday
-
 Präsentation in Englisch als Hausaufgabe bis Freitag
-
 Math homework tomorrow
-
 Geschichte Präsentation bis 12.10.
-
 Finish API in TÆSKS until next Monday
-
 Physik Hausaufgabe morgen
+```
 
-Der Parser soll KEIN LLM als Standard verwenden.
+Use normalization → explicit tokens → dates → project matching → area matching → tags → context defaults → relation validation → confidence → optional LLM only when necessary. An LLM is not the default parser.
 
-Pipeline:
+## 20. Explicit syntax and aliases
 
-1. Normalize
-2. Explicit Tokens
-3. Date Parser
-4. Project Matching
-5. Area Matching
-6. Tag Matching
-7. Context Defaults
-8. Relation Validation
-9. Confidence Score
-10. NUR falls wirklich nötig optionaler LLM Fallback
+Support `#Project`, `@Area`, `[tag]`, for example `Make Presentation #English @Homework [school] tomorrow`. Load project/area names from Notion and store aliases locally. Original examples: Englisch → English/Eng/english class; Hausaufgaben → Homework/HW/Hausi. Short forms must be unambiguous.
 
-==================================================
-20. EXPLICIT QUICK ADD SYNTAX
-==================================================
+## 21. Dates
 
-Unterstütze zusätzlich Power-User-Syntax.
+Build on chrono-node with appropriate extensions. German examples: `heute`, `morgen`, `übermorgen`, `Freitag`, `nächsten Freitag`, `bis Freitag`, `am 12.10.`, `12.10.2026`, `12/10/2026`, `in 2 Wochen`, `in drei Tagen`, `von Montag bis Freitag`, `vom 3.10. bis 18.10.`, `alle 2 Wochen`. English examples: `today`, `tomorrow`, `Friday`, `next Friday`, `until Friday`, `7 Oct`, `03/10/2026`, `in 2 weeks`, `in three days`, `from Monday to Friday`, `from 3 Oct to 18 Oct`, `every 2 weeks`.
 
-Empfehlung:
+Default start is today. A single mentioned date is the deadline/end. Explicit `from X to Y` / `von X bis Y` supplies both endpoints. For example `Physik lernen von 5.10. bis 10.10.` uses 5–10 October. Numeric dates always use **DD/MM/YYYY or DD.MM.YYYY**, never MM/DD/YYYY.
 
-#Project
-@Area
-[tag]
+## 22. Live preview
 
-Beispiel:
+Show detected values while typing, for example `[today] [English] [Homework] [due Fri]`. Keep it compact and understandable before Enter. Missing area/project requires an inline picker or local Inbox draft. Only a valid pair permits saving to Notion.
 
-Make Presentation #English @Homework [school] tomorrow
+## 23. Context defaults
 
-Auch Kurzformen dürfen unterstützt werden.
+A current project/area may supply defaults. In project Englisch, `Make Presentation until Friday` can use that project and infer its unique area. Explicit alternative assignments must still be respected and validated.
 
-Projekt- und Area-Namen müssen aus Notion geladen werden.
+## 24. Matching confidence
 
-Alias-System lokal speichern.
+Combine normalization, case-insensitive matching, aliases, word boundaries, conservative fuzzy matching, relations and current context. Only high-confidence matches may be applied automatically; do not guess aggressively.
 
-Beispiel:
+## 25. Optional LLM fallback
 
-Notion Project:
-Englisch
+The app must work without AI credentials. Optional configuration: `GEMINI_API_KEY` and `GEMINI_MODEL=gemini-3.5-flash-lite`. Use fallback only when deterministic interpretation is insufficient, for example `Need to finally get that English presentation done for homework before school on Monday`. Send only necessary task input, allowed area/project/tag context and today's date. Require strict structured JSON, validate it with Zod, and never invent areas/projects or save an invalid response. Offer manual correction. Original illustrative response fields were title, projectId, areaId, startDate, endDate and confidence; see [current Gemini contracts](GEMINI.md) for the implemented schema.
 
-Aliases:
-English
-Eng
-english class
+## 26. Navigation
 
-Area:
-Hausaufgaben
+Desktop sidebar: brand/add, search, Inbox, Overview, Today, Next 7 Days, Upcoming, Anytime and Someday; collapsible Areas/Projects; tags; filters; external GitHub/Contact. Display meaningful counts. Example trees include Hausaufgaben (Englisch, Mathematik, Physik), Web Development (TÆSKS, Portfolio, HealthSync) and Homelab (SchulPlaner, Paperless Chat). Main tasks belong in content; optional project expansion must not overload the sidebar.
 
-Aliases:
-Homework
-HW
-Hausi
+## 27. Overview
 
-==================================================
-21. DATUMSPARSING
-==================================================
+Provide a dense working view with overdue, today, daily highlight, Inbox sources/drafts and upcoming items. Avoid KPI/statistic cards. Show compact title, assignment and date metadata.
 
-Verwende chrono-node als Grundlage und erweitere es sinnvoll.
+## 28. Today
 
-Unterstütze mindestens:
+A task belongs when its range includes today: `start <= today` and `(end is null OR end >= today)`. Keep incomplete overdue tasks (`end < today`) visible above current work.
 
-Deutsch:
-heute
-morgen
-übermorgen
-Freitag
-nächsten Freitag
-bis Freitag
-am 12.10.
-12.10.2026
-12/10/2026
-in 2 Wochen
-in drei Tagen
-von Montag bis Freitag
-vom 3.10. bis 18.10.
-alle 2 Wochen
+## 29. Next 7 Days
 
-Englisch:
-today
-tomorrow
-Friday
-next Friday
-until Friday
-7 Oct
-03/10/2026
-in 2 weeks
-in three days
-from Monday to Friday
-from 3 Oct to 18 Oct
-every 2 weeks
+Use interval overlap with `[today, today + 7 days]`, not merely endpoint membership. A task spanning the whole window belongs even if neither endpoint starts within it.
 
-WICHTIGE DATUMSREGEL:
+## 30. Upcoming
 
-Standard:
+Show future work beyond the next-seven-days window, grouped compactly by week, month or appropriate dates.
 
-Start Date = HEUTE
+## 31. Anytime
 
-Wenn der User nur ein Datum nennt:
+Show active tasks without a real deadline, such as a start with no end, following the actual Notion data.
 
-dieses Datum ist die DEADLINE / das End Date.
+## 32. Someday
 
-Beispiel:
+Someday is an explicit local metadata flag. Exclude those tasks from normal active views while retaining their Notion association.
 
-"Make Presentation until Friday"
+## 33. Highlight
 
-Start:
-Today
+Use Notion's real Highlight checkbox. Emphasize daily highlights within Today/Overview without oversized cards, for example `[*] Finish TÆSKS parser`.
 
-End:
-Friday
+## 34. Project view
 
-AUSNAHME:
+Use compact contextual navigation, task lists with inline deadlines, optional groups, add task, Someday, Markdown notes, GitHub context and attachments. Original examples included Build parser, Add GitHub integration, Contact Inbox, PostgREST integration and Health route. Keep TÆSKS visual styling rather than imitating Notion.
 
-Wenn der User explizit einen Zeitraum nennt:
+## 35. Area view
 
-From X to Y
-Von X bis Y
+Show the area name/type, projects, open tasks and progress. An area may contain multiple projects. Original school examples remain user vocabulary rather than translation targets.
 
-dann:
+## 36. Search
 
-Start = X
-End = Y
+Ctrl/Cmd+K searches tasks, projects, areas, notes, tags, attachment metadata, GitHub repositories/issues/pull requests and Contact submissions. Group results by source and support keyboard navigation. Current loading/search limits are documented separately.
 
-Beispiel:
+## 37. Keyboard interaction
 
-Study Physics from Monday to Friday
+Suggested shortcuts: Ctrl/Cmd+K search, N Quick Add, Escape close, Enter confirm, arrows/J/K list navigation, Space/X completion when focus is unambiguous, E edit and ? help. Never disrupt ordinary input typing.
 
-Start:
-Monday
+## 38. Common Inbox
 
-End:
-Friday
+Combine local drafts/unresolved captures, unread Contact submissions, GitHub review requests and relevant issues/actionable items while distinguishing their source. External items never become tasks automatically.
 
-oder:
+## 39. External item → task
 
-Physik lernen von 5.10. bis 10.10.
+An explicit Create Task action opens title, area, project, start, deadline and optional tags. After confirmed creation, store source, external ID and Notion task ID in `external_item_links`, then show the confirmed state. Preserve conversion safety.
 
-Start:
-05.10.
-End:
-10.10.
+## 40. GitHub boundary
 
-Bei europäischen numerischen Datumsformaten standardmäßig:
+Use a server-only fine-grained PAT (`GITHUB_TOKEN`, optional `GITHUB_USERNAME`). Read repositories, issues, pull requests, reviews, workflow runs and commits. Never close issues, merge PRs, post comments or alter branches. Creating a separate Notion task from an external item is allowed only through the explicit user flow.
 
-DD/MM/YYYY
-DD.MM.YYYY
+## 41. GitHub view
 
-NICHT MM/DD/YYYY.
+Present compact repository, review, issue and workflow sections with meaningful success/failure/running states. Follow TÆSKS styling rather than copying GitHub's website.
 
-==================================================
-22. QUICK ADD LIVE PREVIEW
-==================================================
+## 42. Project/repository mapping
 
-Während der User tippt, soll TÆSKS LIVE anzeigen, was erkannt wurde.
+Store a local Notion-project ↔ GitHub-repository association in SQLite, e.g. TÆSKS ↔ `username/taesks`. Project context may display its PRs, issues and workflow activity.
 
-Beispiel:
+## 43. Separate Contact service
 
-> Make Presentation in English as Homework until Friday
+The existing external Compose stack must not be changed, merged into this app or assumed to share its Docker network. Original address: `http://192.168.2.173:1917`, configurable by `CONTACT_API_BASE_URL`. It exposes PostgREST over PostgreSQL at `/contact_submissions`, with fields `id`, `site_origin`, `name`, `email`, `message`, `created_at`, `is_read`. Original example timestamp: `2026-08-20T16:43:03.341348+00:00`.
 
-darunter kompakt:
+## 44. Contact architecture
 
-[today] [English] [Homework] [due Fri]
+Only the TÆSKS server calls PostgREST. Browser → TÆSKS server → PostgREST → PostgreSQL. Do not call the service directly from the browser or invent a browser CORS workaround.
 
-oder semantisch hervorgehoben.
+## 45. Contact operations
 
-Die Preview darf NICHT wie ein großes Formular aussehen.
+Where external permissions allow: list, sort, filter, show unread counts, mark read/unread, confirmed delete and explicit create-task conversion. Example GET: `/contact_submissions?order=created_at.desc`; unread filter: `is_read=eq.false`. PATCH `/contact_submissions?id=eq.1` with `{"is_read":true}` or false; DELETE the same item only after confirmation. Disallowed operations produce honest errors.
 
-Sie soll kompakt bleiben.
+## 46. Contact view
 
-Der User muss vor Enter erkennen können, wie TÆSKS den Satz interpretiert.
+Use a compact desktop list with detail alongside; show sender, email, site, received time, message and create-task/read/delete actions. A mailto link is optional; do not imply a working email integration.
 
-Falls Project oder Area fehlen:
+## 47. Contact security
 
-NICHT direkt einen ungültigen Notion Task erzeugen.
+Treat every message as untrusted text. Escape content, validate URLs and avoid raw HTML/scripts/unsafe HTML injection. Optional `CONTACT_API_AUTH_HEADER` supports server credentials, with anonymous operation when appropriate. Document external API protection. Never automatically alter the Contact stack.
 
-Stattdessen:
+## 48. Tags
 
-- passenden Inline Picker anzeigen
-- oder Draft in TÆSKS Inbox halten
+Local tags such as bug, calls, prep, school, waiting and research support filtering, searching, adding/removing and multiple tags per task.
 
-Erst wenn Area + Project gültig sind:
-in Notion speichern.
+## 49. Priority
 
-==================================================
-23. PARSER CONTEXT
-==================================================
+Local values: None, Low, Medium, High, Urgent. Optional Quick Add syntax includes `!`, `!!`, `!!!`, `urgent`, `high priority` and `dringend`. Avoid misreading ordinary prose/punctuation.
 
-Der aktuelle View darf als Default verwendet werden.
+## 50. Saved filters
 
-Wenn der Nutzer innerhalb des Projects "Englisch" ist und schreibt:
+Persist combinations of area, project, tag, priority, dates, Highlight, Someday and completion. Examples: Urgent, High Priority, Waiting, School and Development.
 
-Make Presentation until Friday
+## 51. Reminders
 
-dann:
+First provide reliable reminder metadata, in-app reminders and browser notifications with permission. Only offer real self-hosted Web Push when worker, VAPID, subscriptions and SQLite storage are implemented. Document browser/background-delivery limits honestly; do not fake delivery.
 
-Project = Englisch
+## 52. Recurrence
 
-Wenn Englisch genau einer Area zugeordnet ist:
+Support daily/weekly/every-two-weeks/monthly rules, including `every 2 weeks` / `alle 2 Wochen`. Completion may create the next Notion instance with area, project, tags, priority and correctly advanced dates. Prevent duplicate creation.
 
-Area automatisch setzen.
+## 53. Mobile UX
 
-Dasselbe gilt für einen Area-Kontext.
+Follow compact iPhone references and hierarchical navigation. Prefer headers such as `< lists $ TÆSKS [edit]` or `< overview $ English [...]` over an oversized five-tab bottom bar. Use screen space effectively without card-heavy layouts.
 
-==================================================
-24. FUZZY MATCHING
-==================================================
+## 54. Desktop UX
 
-Nutze:
+Provide persistent sidebar, main content and an optional right inspector for meaningful task-detail work. Do not waste space on an empty permanent inspector.
 
-- Normalisierung
-- Case-insensitive Match
-- Aliases
-- Wortgrenzen
-- Fuzzy Matching
-- Relation Context
-- aktuelle View
-- eindeutige Relation Project -> Area
+## 55. Responsive behavior
 
-Confidence Score verwenden.
+Desktop sidebar stays visible; tablet sidebar can collapse; mobile uses a lists screen/drawer. Task details may use a page or sheet. Quick Add remains easy to reach.
 
-Nur hohe Confidence automatisch übernehmen.
+## 56. PWA
 
-Nicht aggressiv raten.
+Provide branded manifest/icons, theme colors, standalone display, responsive viewport and an appropriate service worker. At minimum, previously loaded shell/content should be readable offline and capture drafts retained locally. Offline external writes must never appear confirmed.
 
-==================================================
-25. LLM FALLBACK
-==================================================
+## 57. Command palette
 
-KI darf NUR im Notfall eingesetzt werden.
+Ctrl/Cmd+K can combine search results and commands: new task, Inbox/Today/project/area/GitHub/Contact navigation, theme, Settings and refresh.
 
-LLM ist optional.
+## 58. Settings and diagnostics
 
-Die App muss ohne AI API Key funktionieren.
+Use a compact view for Notion/GitHub/Contact/local health, actionable failures, property mappings, parser aliases, project/repository mappings, theme and optional LLM status. Never display secrets or confuse configured state with a tested connection.
 
-Optional env:
+## 59. Schema diagnostics
 
-GEMINI_API_KEY=
-GEMINI_MODEL=gemini-3.5-flash-lite
+On startup or explicit refresh, check all three sources, required properties and relation targets. Explain missing names/types and detected alternatives; do not show cryptic raw API failures.
 
-Der LLM Fallback darf nur verwendet werden, wenn der deterministische Parser keinen ausreichend sicheren Parse erzeugen kann.
+## 60. Refresh strategy
 
-Beispiel schwieriger Input:
+Use server caching, query invalidation, manual refresh and reasonable stale times. Never reread entire databases per keystroke. Invalidate relevant reads after mutations.
 
-Need to finally get that English presentation done for homework before school on Monday
+## 61. Loading states
 
-LLM bekommt NUR:
+Use subtle skeletons, inline status and text placeholders matching the terminal style, without dominant spinners.
 
-- Task Input
-- erlaubte Areas
-- erlaubte Projects
-- erlaubte Tags
-- heutiges Datum
+## 62. Error states
 
-Kein unnötiger Kontext.
+Use concise integration status, last-success information and retry actions. The original mockup included a Contact service address; current diagnostics must follow the stricter source-specific privacy contracts. Never display stack traces or secrets.
 
-LLM muss strict structured JSON liefern.
+## 63. Empty states
 
-Es darf KEINE neuen Areas oder Projects erfinden.
+Keep them minimal, such as `today // nothing here.` or `inbox 0 // you're clear.` Avoid large illustrations.
 
-Beispiel:
+## 64. Accessibility
 
-{
-  "title": "Finish presentation",
-  "projectId": "...",
-  "areaId": "...",
-  "startDate": "...",
-  "endDate": "...",
-  "confidence": 0.92
-}
+Use semantic HTML, keyboard navigation, visible focus, appropriate ARIA, sufficient contrast, accessible labels and reduced-motion support despite the terminal aesthetic.
 
-Response mit Zod validieren.
+## 65. Performance
 
-Wenn ungültig:
+Quick Add must feel immediate. Parse locally/deterministically first, do not call AI while typing, debounce only required external operations, avoid redundant renders and consider virtualization for large lists.
 
-nicht speichern.
+## 66. Motion
 
-Zeige stattdessen manuelle Auswahl.
+Use precise subtle 120–200 ms opacity/translation/height/focus transitions. Avoid bounce, large springs and exaggerated page transitions. Later documented component timings may differ.
 
-==================================================
-26. HAUPTNAVIGATION
-==================================================
+## 67. Security
 
-Desktop Sidebar ungefähr:
+Keep NOTION_TOKEN, GITHUB_TOKEN, GEMINI_API_KEY, Contact credentials and the VAPID private key server-only, never `NEXT_PUBLIC_*`. Validate mutations with schemas. Bound uploads, inspect MIME information, sanitize filenames and prevent traversal.
 
-TÆSKS                          [+]
+## 68. Environment reference
 
-Search...
+Provide complete `.env.example` with PORT=3000, DATA_DIR=/app/data, required Notion IDs/token/property mappings, GitHub credentials, Contact base URL/header, optional Gemini key/model and VAPID public/private keys/subject. Current additional variables and precise defaults are in [`.env.example`](../.env.example); do not copy credentials into documentation.
 
-Inbox                         3
-Overview
-Today                         7
-Next 7 Days                  12
-Upcoming                      5
-Anytime                       4
-Someday                       7
+## 69. Compose
 
-AREAS
+Use container `taesks`, build context `.`, restart unless-stopped, runtime env file, `2015:3000`, persistent `/app/data` and a health check. The original sketch used `./data:/app/data`; current Compose uses the named volume documented in [deployment](DEPLOYMENT.md). No contact_api/postgres/redis service dependencies or required new Docker networks.
 
-▾ Hausaufgaben
-   Englisch                   3
-   Mathematik                 4
-   Physik                     2
+## 70. Health
 
-▾ Web Development
-   TÆSKS                      7
-   Portfolio                  3
-   HealthSync                 2
+`GET /api/health` reports app/local database health plus safe integration status. Optional integrations may be disabled or temporarily unavailable without making the container unhealthy. The application and local database govern container health.
 
-▾ Homelab
-   SchulPlaner                4
-   Paperless Chat             2
+## 71. Tests
 
-TAGS
+Cover German/English date parsing, numeric ambiguity, English/German ranges, aliases, project/area matching and relations, interval overlap, Today/Next 7 Days, capture integration, mocked Notion/Contact/GitHub adapters and central browser flows.
 
-[bug]
-[school]
-[calls]
-[waiting]
+## 72. Required parser examples
 
-FILTERS
+`Make Presentation in English as Homework until the 10/10/2026` should resolve title Make Presentation, project Englisch and area Hausaufgaben when aliases exist, start=current day, end=2026-10-10. Also test the German presentation example, `Physics homework tomorrow`, `Physik lernen von Montag bis Freitag`, `Study physics from 5 Oct to 10 Oct` and `Fix API #TÆSKS @WebDevelopment until next Monday`.
 
-Urgent
-High Priority
-Waiting
+## 73. Timezone
 
-EXTERNAL
+The original user's default is Germany: `APP_TIMEZONE=Europe/Berlin`. Today/heute must use that zone, avoiding UTC day shifts.
 
-GitHub
-Contact
+## 74. Date display
 
-Die Sidebar soll Counts anzeigen.
+Compact English/terminal-style dates such as `sat oct 3` / `fri oct 9`, or localized equivalents, are acceptable. Store ISO calendar dates internally. German and English parsing is independent of UI language.
 
-Areas und Projects auf- und zuklappbar.
+## 75. Localization
 
-Datenmodell bleibt:
+The original brief allowed an initial English interface and required German/English parsing with extensible localization architecture. Current source-aware catalogs and English-first selection are described in [the catalog specification](language-catalogs.md).
 
-Area
-└── Project
-    └── Task
+## 76. Inbox details
 
-Tasks müssen nicht dauerhaft alle in der Sidebar sichtbar sein.
+Distinguish Contact, GitHub and Draft groups. Contact actions: open/create task/read; GitHub: open/create task; drafts: complete fields/delete. Show relevant message/repository/assignment context without treating external items as tasks.
 
-Optional darf ein Project expandiert werden.
+## 77. Task rows
 
-Haupt-Taskliste bleibt im Content-Bereich.
+Compact completion control, title, tags and inline assignment/date metadata. Example: `[ ] Make Presentation [school]`, with `English · Homework · today → fri`. Show deadline/overdue context and subtly mute completed rows.
 
-==================================================
-27. OVERVIEW
-==================================================
+## 78. Project trees
 
-Overview ist KEIN KPI-Dashboard.
+Use CSS tree lines rather than image assets. Example user vocabulary: Hausaufgaben → Englisch/Physik/Mathematik and Homelab → SchulPlaner/Paperless Chat/Habit Tracker.
 
-Keine großen Statistik-Karten.
+## 79. Counts
 
-Es ist eine dichte Arbeitsansicht.
+Right-align counts, e.g. Inbox 3, Today 7, Next 7 Days 12, TÆSKS 7 and Portfolio 3. Count open/relevant items where meaningful.
 
-Zeige beispielsweise:
+## 80. Deletion
 
-overdue
+Confirm Notion task, Contact submission and local attachment deletion using consistent branded dialogs, not browser-native `confirm()`.
 
-[ ] Aufgabe A
-[ ] Aufgabe B
+## 81. Manual sync
 
-today
+Offer Refresh Data through a button/palette or R shortcut, with compact sync age and no permanent dominant spinner.
 
-[ ] Make Presentation
-    // English · Homework
-    // today → fri
+## 82. Logging
 
-daily highlight
+Use structured server logs with source, operation, status and correlation ID. Never log secrets or full authorization headers.
 
-[*] Finish TÆSKS Parser
+## 83. README
 
-inbox
+Document product purpose, architecture/design, requirements, environment/Notion relations, GitHub permissions, separate Contact service, Docker/Compose/port 2015, persistence, `/app/data` backups, troubleshooting, security, optional AI and health. Essential operational detail may live in linked guides.
 
-● Contact Request
-● GitHub Review
-● Draft
+## 84. Preserve the Contact stack
 
-upcoming
+The separate historical architecture was contact_db (PostgreSQL 16) and contact_api (PostgREST), host port 1917. TÆSKS accesses it server-side through CONTACT_API_BASE_URL. Do not change that Compose stack or require a shared/new Docker network.
 
-...
+## 85. Original definition of done
 
-==================================================
-28. TODAY LOGIK
-==================================================
+The original checklist required: running Next.js; clean TypeScript/lint/production build; built image/running healthy container on 2015; migrations and restart persistence; dark/light, mobile/desktop, sidebar/tree/project views; Notion read/create/edit/complete/delete and validated relations; Quick Add, both parser languages, ranges, live preview and optional AI working or disabled; Today, Overdue, Next 7 Days overlap, Upcoming, Anytime, Someday, Highlight; tags, priority, notes, files, filters, search/palette; read-only GitHub with server-only token; server-proxied Contact listing/read/unread/delete where authorized; Contact/GitHub task conversion and repository mapping; complete docs/env examples; no committed secrets; meaningful parser/integration tests. This checklist is a requirement record, not a statement that live services were verified.
 
-Notion Due Date kann ein Intervall sein.
+## 86. Missing credentials
 
-Ein Task gehört zu Today, wenn sein Zeitraum heute enthält:
+Build/start/health/setup must work without real API keys. Show not configured/unavailable states. Do not populate production with fake tasks. Targeted test fixtures are allowed in isolated development tests.
 
-start <= today
-UND
-(end ist null ODER end >= today)
+## 87. No placeholder end product
 
-Overdue Tasks sollen NICHT verschwinden.
+Do not substitute TODOs, fake buttons, static demos, disconnected UI, unused APIs or an untested Dockerfile for implementation. Verify external limitations, handle them, document them and disable unavailable actions honestly.
 
-Unvollständige Tasks mit:
+## 88. Original implementation phases
 
-end < today
+Proceed sequentially through architecture, design/shell, SQLite, Notion, entity tree, CRUD, parser, Quick Add, views, notes/tags/files/filters, GitHub, Contact, search/palette/shortcuts, PWA/mobile, Docker and final QA. Verify each phase before the next.
 
-werden oben als Overdue angezeigt.
+## 89. Reference material
 
-==================================================
-29. NEXT 7 DAYS LOGIK
-==================================================
+The original brief expected images/videos showing init.Tasks feature overview, Markdown, mobile Overview, Someday, sidebar/lists, project detail and the user's real three Notion databases. Inspect spacing, hierarchy, trees, fonts, inline comments, dates/colors, density, mobile headers, rows, projects, notes/files and Quick Add. Retain a distinct TÆSKS identity. This document does not imply those attachments are currently available.
 
-Nicht nur prüfen, ob Start oder Enddatum innerhalb der nächsten sieben Tage liegen.
+## 90. Product vision
 
-Prüfe, ob sich die Zeiträume überschneiden.
+A personal task operating system: Notion provides task structure, TÆSKS the working interface, GitHub development context, Contact incoming messages and SQLite local additions. Capture → understand → area → project → task → act. One thought should resolve into an editable task while projects, areas, notes, files, source context and planning remain accessible in one application.
 
-Task Range:
+## 91. Original delivery instruction
 
-taskStart → taskEnd
-
-View Range:
-
-today → today + 7 days
-
-Task gehört hinein, wenn sich beide Intervalle überschneiden.
-
-Das ist wichtig.
-
-Ein Task kann den gesamten Zeitraum umfassen, auch wenn weder Start- noch Enddatum exakt darin beginnen.
-
-==================================================
-30. UPCOMING
-==================================================
-
-Zeige zukünftige Tasks nach Next 7 Days.
-
-Sinnvoll gruppieren nach:
-
-Woche
-Monat
-oder konkreten Daten
-
-Kompakte Darstellung.
-
-==================================================
-31. ANYTIME
-==================================================
-
-Anytime enthält aktive Tasks ohne echte Deadline.
-
-Beispiel:
-
-Start vorhanden
-End fehlt
-
-oder entsprechend der tatsächlichen Notion-Daten.
-
-==================================================
-32. SOMEDAY
-==================================================
-
-Someday ist eine explizite TÆSKS-Funktion.
-
-Sie darf über lokale Metadata umgesetzt werden.
-
-Someday Tasks sollen aus normalen aktiven Views herausfallen.
-
-Sie bleiben weiterhin mit ihrem Notion Task verbunden.
-
-==================================================
-33. HIGHLIGHT
-==================================================
-
-Notion besitzt ein Highlight Checkbox Property.
-
-Nutze es.
-
-Today / Overview soll Daily Highlight sichtbar hervorheben.
-
-Nicht als riesige Karte.
-
-Beispiel:
-
-highlight
-
-[*] Finish TÆSKS parser
-    TÆSKS · Web Development
-
-==================================================
-34. PROJECT VIEW
-==================================================
-
-Orientiere dich stark an der Projektansicht aus den Referenzbildern.
-
-Beispiel:
-
-< Web Development       $ TÆSKS                   [edit]
-
-[ ] Build parser
-    // due Oct 8
-
-[ ] Add GitHub integration
-
-[ ] Contact Inbox
-    // due Oct 12
-
-API
-    [ ] PostgREST integration
-    [ ] Health route
-
-[+ task]
-
-someday 3 >
-
-note
-
-┌──────────────────────────────────────┐
-│ Markdown content...                  │
-└──────────────────────────────────────┘
-
-github
-
-PR #18 Quick Add parser
-Issue #7 Mobile navigation
-
-attachments 4
-
-🔗 Notion API docs
-📄 architecture.md
-🖼 parser-reference.png
-
-Project View soll NICHT wie Notion aussehen.
-
-Es soll die reduzierte TÆSKS Sprache verwenden.
-
-==================================================
-35. AREA VIEW
-==================================================
-
-Area View zeigt:
-
-Area Name
-Type
-Projects
-offene Tasks
-Progress
-
-Beispiel:
-
-$ Hausaufgaben
-
-projects
-
-English               3
-Physics               2
-Mathematics           4
-
-tasks
-
-...
-
-Area kann mehrere Projects enthalten.
-
-==================================================
-36. SEARCH
-==================================================
-
-Global Search:
-
-Ctrl/Cmd + K
-
-Suche über:
-
-- Notion Tasks
-- Projects
-- Areas
-- TÆSKS Notes
-- Tags
-- Attachments Metadata
-- GitHub Repositories
-- GitHub Issues
-- Pull Requests
-- Contact Submissions
-
-Suchergebnisse nach Source gruppieren.
-
-Keyboard Navigation.
-
-==================================================
-37. KEYBOARD-FIRST
-==================================================
-
-Implementiere sinnvolle Shortcuts.
-
-Mindestens:
-
-Cmd/Ctrl + K
-Global Search
-
-N
-New Task / Quick Add
-
-Escape
-Close current overlay
-
-Enter
-Confirm
-
-Arrow Up / Down oder J/K
-Navigation in Listen
-
-Space oder X
-Task Complete Toggle, sofern Fokus eindeutig ist
-
-E
-Edit current item
-
-?
-
-Keyboard Shortcut Help
-
-Keine Shortcuts verwenden, die normales Tippen in Inputs stören.
-
-==================================================
-38. COMMON INBOX
-==================================================
-
-TÆSKS besitzt eine gemeinsame Inbox.
-
-Die Inbox vereinigt mehrere Quellen, aber unterscheidet klar deren Typ.
-
-Mögliche Items:
-
-- lokale Quick Add Drafts
-- Parser-Fälle, die noch Area/Project brauchen
-- ungelesene Contact Submissions
-- GitHub Review Requests
-- relevante GitHub Issues
-- andere externe actionable Items
-
-Wichtig:
-
-GitHub Items bleiben GitHub Items.
-
-Contact Submissions bleiben Contact Submissions.
-
-Sie werden NICHT automatisch zu Tasks.
-
-==================================================
-39. EXTERNAL ITEM -> NOTION TASK
-==================================================
-
-Externe Items können mit:
-
-Create Task
-
-in einen Notion Task umgewandelt werden.
-
-Dann zeige kompakten Task Composer:
-
-Title
-Area
-Project
-Start
-Deadline
-
-Optional Tags etc.
-
-Nach Erstellung:
-
-local external_item_links:
-
-source
-external_id
-notion_task_id
-
-speichern.
-
-Dann kann UI anzeigen:
-
-Task created ✓
-
-==================================================
-40. GITHUB
-==================================================
-
-GitHub Integration ist READ ONLY.
-
-Authentifizierung:
-
-Fine-grained Personal Access Token
-
-Environment:
-
-GITHUB_TOKEN=
-
-Optional:
-
-GITHUB_USERNAME=
-
-Token ausschließlich serverseitig.
-
-NIE an Browser liefern.
-
-Zeige:
-
-- Repositories
-- Issues
-- Pull Requests
-- Review Requests
-- Actions / Workflow Runs
-- Commits
-
-Keine GitHub Mutations.
-
-Also NICHT:
-
-- Issue schließen
-- PR mergen
-- Kommentar schreiben
-- Branch ändern
-
-Aus GitHub Item darf lediglich ein Notion Task erstellt werden.
-
-==================================================
-41. GITHUB VIEW
-==================================================
-
-GitHub UI soll der TÆSKS Sprache folgen.
-
-Beispiel:
-
-$ github
-
-repositories
-
-TÆSKS
-SchulPlaner
-Portfolio
-Paperless Chat
-
-reviews
-
-● PR #42
-  Fix mobile parser
-  TÆSKS
-
-issues
-
-○ #18
-  Contact Inbox errors
-
-actions
-
-✓ deploy
-✕ test
-● build
-
-Kompakt.
-
-Keine GitHub-Website kopieren.
-
-==================================================
-42. GITHUB PROJECT MAPPING
-==================================================
-
-Erlaube lokal:
-
-Notion Project
-↔
-GitHub Repository
-
-zu verbinden.
-
-Speichere das Mapping in SQLite.
-
-Beispiel:
-
-Notion Project:
-TÆSKS
-
-GitHub:
-username/taesks
-
-Dann kann Project View automatisch:
-
-github
-
-PR ...
-Issue ...
-Action ...
-
-anzeigen.
-
-==================================================
-43. CONTACT API
-==================================================
-
-Es existiert bereits ein separater Docker Compose Stack.
-
-NICHT verändern.
-
-NICHT in TÆSKS Docker Compose integrieren.
-
-NICHT dasselbe Docker Network voraussetzen.
-
-Der vorhandene Service ist erreichbar unter:
-
-http://192.168.2.173:1917
-
-Das muss als Environment Variable konfigurierbar sein:
-
-CONTACT_API_BASE_URL=http://192.168.2.173:1917
-
-Der Service ist PostgREST vor PostgreSQL.
-
-Endpoint:
-
-/contact_submissions
-
-Beispieldatensatz:
-
-{
-  "id": 1,
-  "site_origin": "itsmarian.dev",
-  "name": "Example",
-  "email": "example@example.com",
-  "message": "Example message",
-  "created_at": "2026-08-20T16:43:03.341348+00:00",
-  "is_read": false
-}
-
-==================================================
-44. CONTACT API ARCHITEKTUR
-==================================================
-
-Browser darf NICHT direkt:
-
-192.168.2.173:1917
-
-aufrufen.
-
-Richtig:
-
-Browser
-↓
-TÆSKS Server
-↓
-PostgREST API
-↓
-Postgres
-
-Nur serverseitige Requests.
-
-Kein CORS Workaround im Browser.
-
-==================================================
-45. CONTACT FUNKTIONEN
-==================================================
-
-Implementiere, sofern PostgREST es zulässt:
-
-- Submissions laden
-- sortieren
-- filtern
-- unread anzeigen
-- read markieren
-- unread markieren
-- löschen
-- aus Submission Notion Task erstellen
-
-Beispiel GET:
-
-/contact_submissions?order=created_at.desc
-
-Unread:
-
-/contact_submissions?is_read=eq.false&order=created_at.desc
-
-Read:
-
-PATCH
-/contact_submissions?id=eq.1
-
-Body:
-
-{
-  "is_read": true
-}
-
-Unread:
-
-{
-  "is_read": false
-}
-
-Delete:
-
-DELETE
-/contact_submissions?id=eq.1
-
-Vor DELETE:
-
-Bestätigungsdialog.
-
-Falls API Operation nicht erlaubt:
-
-sauberer Fehler.
-
-Nicht vortäuschen, dass Aktion funktioniert hat.
-
-==================================================
-46. CONTACT VIEW
-==================================================
-
-Desktop:
-
-links kompakte Liste
-rechts Detail
-
-Beispiel:
-
-$ contact
-
-3 unread
-
-● Example Person
-  itsmarian.dev
-  5 min
-
-○ Another Person
-  itsmarian.dev
-  yesterday
-
-Detail:
-
-Example Person
-example@example.com
-
-itsmarian.dev
-
-Oct 3, 18:32
-
-Message:
-...
-
-[create task]
-[mark read]
-[delete]
-
-Optional:
-
-mailto Link
-
-Keine E-Mail-Funktion implementieren, sofern keine Mailintegration konfiguriert ist.
-
-==================================================
-47. CONTACT SECURITY
-==================================================
-
-Alle Contact Inhalte sind UNTRUSTED USER INPUT.
-
-Deshalb:
-
-- HTML escapen
-- niemals raw HTML rendern
-- URLs validieren
-- Message als Text behandeln
-- keine Scripts
-- keine unsafe dangerouslySetInnerHTML
-
-Unterstütze optional für später:
-
-CONTACT_API_AUTH_HEADER=
-
-aber funktioniere auch ohne.
-
-Dokumentiere im README, dass die vorhandene PostgREST-Konfiguration serverseitig separat abgesichert werden sollte.
-
-TÆSKS darf den externen Contact Stack NICHT automatisch verändern.
-
-==================================================
-48. TAGS
-==================================================
-
-Tags werden lokal in TÆSKS verwaltet.
-
-Beispiele:
-
-[bug]
-[calls]
-[prep]
-[school]
-[waiting]
-[research]
-
-Task kann mehrere Tags besitzen.
-
-Tags müssen:
-
-- gefiltert
-- gesucht
-- hinzugefügt
-- entfernt
-
-werden können.
-
-==================================================
-49. PRIORITY
-==================================================
-
-Task Priority lokal:
-
-None
-Low
-Medium
-High
-Urgent
-
-Quick Add darf optional Syntax unterstützen:
-
-!
-!!
-!!!
-
-oder Wörter:
-
-urgent
-high priority
-dringend
-
-Achte darauf, dass Parser nicht aggressiv falsch interpretiert.
-
-==================================================
-50. SAVED FILTERS
-==================================================
-
-User kann Filter speichern.
-
-Beispiel:
-
-Urgent
-High Priority
-Waiting
-School
-Development
-
-Filter können kombinieren:
-
-Area
-Project
-Tag
-Priority
-Date
-Highlight
-Someday
-Completion
-
-In SQLite speichern.
-
-==================================================
-51. REMINDERS
-==================================================
-
-Task kann einen lokalen Reminder haben.
-
-Implementiere zunächst zuverlässig:
-
-- Reminder Metadata
-- in-app Reminder
-- Browser Notification, wenn Berechtigung vorhanden
-
-Wenn du Web Push zuverlässig self-hosted implementieren kannst:
-
-- Service Worker
-- VAPID
-- Push Subscription
-- SQLite Speicherung
-
-Dann umsetzen.
-
-Keine Fake-Funktion.
-
-Falls bestimmte Browser systembedingt keine zuverlässigen Background Notifications erlauben:
-
-im README transparent dokumentieren.
-
-==================================================
-52. RECURRENCE
-==================================================
-
-Task kann lokale Recurrence Rules besitzen.
-
-Beispiele:
-
-daily
-weekly
-every 2 weeks
-monthly
-
-Natural Language:
-
-every 2 weeks
-alle 2 Wochen
-
-Beim Abschließen eines wiederkehrenden Tasks kann TÆSKS die nächste Notion Task Instanz erzeugen.
-
-Dabei:
-
-- Area übernehmen
-- Project übernehmen
-- lokale Tags übernehmen
-- Priority übernehmen
-- Datum korrekt fortschreiben
-
-Doppelerstellung verhindern.
-
-==================================================
-53. MOBILE UX
-==================================================
-
-Die Referenzbilder zeigen eine sehr kompakte iPhone UI.
-
-Orientiere dich daran.
-
-Mobile Navigation NICHT als klassische riesige 5-Tab Bottom Bar erzwingen.
-
-Bevorzuge hierarchische Navigation.
-
-Beispiel Header:
-
-< lists          $ TÆSKS              [edit]
-
-oder:
-
-< overview       $ English            [...]
-
-Listen sollen den Bildschirm gut ausnutzen.
-
-Keine Card-basierte Mobile UI.
-
-==================================================
-54. DESKTOP UX
-==================================================
-
-Desktop:
-
-persistente Sidebar
-
-Hauptcontent
-
-optional rechter Inspector bei Task Detail
-
-Beispiel:
-
-┌───────────────┬──────────────────────┬──────────────┐
-│ Sidebar       │ Main                 │ Inspector    │
-│               │                      │ optional     │
-└───────────────┴──────────────────────┴──────────────┘
-
-Inspector nur öffnen, wenn sinnvoll.
-
-Nicht permanent Bildschirm verschwenden.
-
-==================================================
-55. RESPONSIVE BEHAVIOR
-==================================================
-
-Desktop:
-Sidebar permanent.
-
-Tablet:
-Sidebar einklappbar.
-
-Mobile:
-Sidebar wird eigene List View / Drawer.
-
-Task Details:
-eigene Seite oder Sheet.
-
-Quick Add:
-immer schnell erreichbar.
-
-==================================================
-56. PWA
-==================================================
-
-TÆSKS soll installierbar sein.
-
-Implementiere:
-
-- manifest
-- icons / placeholders mit TÆSKS Branding
-- theme colors
-- standalone mode
-- responsive viewport
-- service worker, sofern Architektur geeignet
-
-Offline:
-
-Mindestens:
-
-- App Shell
-- zuletzt geladene Inhalte lesbar, sofern sinnvoll
-- Quick Add Draft lokal zwischenspeichern
-
-Externe Mutations dürfen bei Offline-Zustand NICHT als erfolgreich dargestellt werden.
-
-==================================================
-57. COMMAND PALETTE
-==================================================
-
-Cmd/Ctrl + K öffnet eine Command Palette.
-
-Actions:
-
-New Task
-Search
-Go to Inbox
-Go to Today
-Go to Project
-Go to Area
-Go to GitHub
-Go to Contact
-Toggle Theme
-Open Settings
-Refresh Data
-
-Suchergebnisse und Commands dürfen kombiniert werden.
-
-==================================================
-58. SETTINGS / DIAGNOSTICS
-==================================================
-
-Keine klassische riesige Settings App.
-
-Eine kompakte Settings/Diagnostics View reicht.
-
-Zeige:
-
-Notion
-✓ connected
-
-GitHub
-✓ connected
-
-Contact API
-✓ reachable
-
-Local Database
-✓ healthy
-
-Falls Fehler:
-
-klar beschreiben.
-
-Secrets niemals anzeigen.
-
-Zusätzlich:
-
-- Property Mapping
-- Parser Aliases
-- Project ↔ GitHub Mapping
-- Theme
-- optional LLM Status
-
-==================================================
-59. NOTION SCHEMA DIAGNOSTICS
-==================================================
-
-Beim Start oder manuell:
-
-prüfen:
-
-Tasks DB erreichbar?
-Projects DB erreichbar?
-Areas DB erreichbar?
-
-Benötigte Properties vorhanden?
-
-Relations korrekt?
-
-Wenn nicht:
-
-konkrete Fehlermeldung.
-
-Beispiel:
-
-Task property "Due Date" was not found.
-
-Found:
-- Name
-- Date
-- Project
-- Area
-
-Keine kryptischen API Errors an Enduser.
-
-==================================================
-60. DATA REFRESH
-==================================================
-
-Externe Daten sinnvoll cachen.
-
-Nicht bei jedem Tastendruck komplette Notion Database laden.
-
-Nutze:
-
-- server-side cache
-- query invalidation
-- manual refresh
-- reasonable stale times
-
-Nach einer Mutation:
-relevante Daten invalidieren.
-
-==================================================
-61. LOADING STATES
-==================================================
-
-Keine riesigen Spinner.
-
-Verwende:
-
-- dezente Skeletons
-- Inline Status
-- Text Placeholder
-
-Design passend zur Terminal-Ästhetik.
-
-==================================================
-62. ERROR STATES
-==================================================
-
-Fehler sollen aussehen wie Teil von TÆSKS.
-
-Beispiel:
-
-! notion unavailable
-  last successful sync 4 min ago
-
-[retry]
-
-oder:
-
-! contact api unreachable
-  http://192.168.2.173:1917
-
-Nicht technische Stack Traces an Nutzer anzeigen.
-
-==================================================
-63. EMPTY STATES
-==================================================
-
-Minimal.
-
-Beispiel:
-
-today
-
-// nothing here.
-
-oder:
-
-inbox 0
-
-// you're clear.
-
-Keine großen Illustrationen.
-
-==================================================
-64. ACCESSIBILITY
-==================================================
-
-Trotz Terminal-Look:
-
-- semantisches HTML
-- Keyboard Navigation
-- Focus States
-- ARIA wo notwendig
-- ausreichende Farbkontraste
-- Screen Reader Labels
-- Reduced Motion berücksichtigen
-
-==================================================
-65. PERFORMANCE
-==================================================
-
-Ziel:
-
-sehr schnelles UI.
-
-Quick Add muss sich sofort anfühlen.
-
-Parser zuerst lokal/deterministisch.
-
-Kein LLM Request während normalen Tippens.
-
-Debounce nur bei extern nötigen Operationen.
-
-Keine unnötigen Re-Renders.
-
-Große Task-Listen ggf. virtualisieren.
-
-==================================================
-66. ANIMATIONEN
-==================================================
-
-Sehr subtil.
-
-Geeignet:
-
-- 120–200ms
-- opacity
-- slight translate
-- height transitions
-- focus changes
-
-Keine:
-- bounce animations
-- große spring effects
-- übertriebene page transitions
-
-Die App soll sich präzise anfühlen.
-
-==================================================
-67. SECURITY
-==================================================
-
-Server-only Secrets:
-
-NOTION_TOKEN
-GITHUB_TOKEN
-GEMINI_API_KEY
-CONTACT credentials, falls später nötig
-VAPID private key
-
-Nie:
-
-NEXT_PUBLIC_*
-
-für Secrets.
-
-Alle Mutations validieren.
-
-Zod Schemas.
-
-Dateiuploads:
-
-- Größe begrenzen
-- MIME prüfen
-- Dateiname sanitizen
-- Pfad-Traversal verhindern
-
-==================================================
-68. ENVIRONMENT VARIABLES
-==================================================
-
-Erstelle eine vollständige .env.example.
-
-Mindestens:
-
-# APP
-
-PORT=3000
-DATA_DIR=/app/data
-
-# NOTION
-
-NOTION_TOKEN=
-NOTION_TASKS_DATABASE_ID=
-NOTION_PROJECTS_DATABASE_ID=
-NOTION_AREAS_DATABASE_ID=
-
-NOTION_TASK_TITLE_PROPERTY=Name
-NOTION_TASK_DATE_PROPERTY=Due Date
-NOTION_TASK_AREA_PROPERTY=Area
-NOTION_TASK_PROJECT_PROPERTY=Project
-NOTION_TASK_HIGHLIGHT_PROPERTY=Highlight
-
-# GITHUB
-
-GITHUB_TOKEN=
-GITHUB_USERNAME=
-
-# CONTACT
-
-CONTACT_API_BASE_URL=http://192.168.2.173:1917
-CONTACT_API_AUTH_HEADER=
-
-# OPTIONAL AI FALLBACK
-
-GEMINI_API_KEY=
-GEMINI_MODEL=gemini-3.5-flash-lite
-
-# OPTIONAL WEB PUSH
-
-VAPID_PUBLIC_KEY=
-VAPID_PRIVATE_KEY=
-VAPID_SUBJECT=
-
-==================================================
-69. DOCKER COMPOSE
-==================================================
-
-Beispielziel:
-
-services:
-  taesks:
-    build:
-      context: .
-    container_name: taesks
-    restart: unless-stopped
-    env_file:
-      - .env
-    ports:
-      - "2015:3000"
-    volumes:
-      - ./data:/app/data
-    healthcheck:
-      ...
-
-KEINE dependencies auf:
-
-contact_api
-postgres
-redis
-
-Der Contact Stack läuft separat.
-
-==================================================
-70. HEALTH ENDPOINT
-==================================================
-
-Implementiere:
-
-GET /api/health
-
-Antwort ungefähr:
-
-{
-  "status": "ok",
-  "services": {
-    "localDatabase": "ok",
-    "notion": "ok",
-    "github": "ok",
-    "contact": "ok"
-  }
-}
-
-Optional Integrationen dürfen "disabled" sein.
-
-Healthcheck des Containers darf nicht dauerhaft unhealthy werden, nur weil eine optionale Integration temporär down ist.
-
-App selbst + lokale DB entscheiden über Container Health.
-
-==================================================
-71. TESTING
-==================================================
-
-Implementiere sinnvolle Tests.
-
-Mindestens:
-
-UNIT:
-
-- date parser
-- German dates
-- English dates
-- DD/MM ambiguity
-- From X to Y
-- Von X bis Y
-- aliases
-- project matching
-- area matching
-- relation validation
-- interval overlap
-- today logic
-- next 7 days logic
-
-INTEGRATION:
-
-- Quick Add parse
-- Notion adapter with mocks
-- Contact PostgREST adapter
-- GitHub adapter
-
-E2E:
-
-mindestens zentrale Happy Paths.
-
-==================================================
-72. WICHTIGE PARSER TESTS
-==================================================
-
-Tests müssen mindestens enthalten:
-
-Input:
-
-Make Presentation in English as Homework until the 10/10/2026
-
-Expected:
-
-title = Make Presentation
-project = Englisch, sofern Alias vorhanden
-area = Hausaufgaben, sofern Alias vorhanden
-start = current date
-end = 2026-10-10
-
-Input:
-
-Präsentation in Englisch als Hausaufgabe bis Freitag
-
-Input:
-
-Physics homework tomorrow
-
-Input:
-
-Physik lernen von Montag bis Freitag
-
-Input:
-
-Study physics from 5 Oct to 10 Oct
-
-Input:
-
-Fix API #TÆSKS @WebDevelopment until next Monday
-
-==================================================
-73. TIMEZONE
-==================================================
-
-Datumslogik muss timezone-safe sein.
-
-User befindet sich in Deutschland.
-
-Default App Timezone:
-
-Europe/Berlin
-
-Konfigurierbar:
-
-APP_TIMEZONE=Europe/Berlin
-
-"today" und "heute" müssen sich auf diese Timezone beziehen.
-
-Keine UTC-Off-by-one Fehler.
-
-==================================================
-74. DATE DISPLAY
-==================================================
-
-UI darf kompakte englische/terminalartige Datumsdarstellung verwenden.
-
-Beispielsweise:
-
-sat oct 3
-fri oct 9
-
-oder lokalisiert.
-
-Aber intern ISO Dates.
-
-Der Parser versteht Deutsch und Englisch unabhängig von der UI-Sprache.
-
-==================================================
-75. LOCALIZATION
-==================================================
-
-Primäre UI darf zunächst Englisch sein, passend zum Stil der Referenz.
-
-Parser versteht Deutsch + Englisch.
-
-Architektur sollte spätere UI-Lokalisierung nicht verhindern.
-
-==================================================
-76. DETAIL: INBOX UX
-==================================================
-
-Beispiel:
-
-$ inbox 4
-
-CONTACT
-● Website problem report
-  itsmarian.dev · 12m
-
-GITHUB
-● review requested
-  TÆSKS #42 · parser refactor
-
-DRAFT
-● Make Presentation
-  missing project
-
-Jedes Item mit passenden Aktionen.
-
-Contact:
-
-[open] [create task] [read]
-
-GitHub:
-
-[open] [create task]
-
-Draft:
-
-[complete fields] [delete]
-
-==================================================
-77. DETAIL: TASK ROW
-==================================================
-
-Task Row soll kompakt sein.
-
-Beispiel:
-
-[ ] Make Presentation [school]
-    // English · Homework · today → fri
-
-oder bei Deadline:
-
-[ ] Pay the water bill
-    // ⚑ thu oct 8
-
-Overdue:
-
-[ ] Finish parser
-    // ⚑ oct 1 · 2 days late
-
-Completion:
-
-[x] ...
-
-Completed Items dezent ausgrauen.
-
-==================================================
-78. DETAIL: PROJECT TREE
-==================================================
-
-Tree Lines wie Referenzen können verwendet werden:
-
-Hausaufgaben
-├── Englisch
-├── Physik
-└── Mathematik
-
-Homelab
-├── SchulPlaner
-├── Paperless Chat
-└── Habit Tracker
-
-Use CSS, keine Bildassets für Tree Lines.
-
-==================================================
-79. DETAIL: COUNTS
-==================================================
-
-Counts rechtsbündig.
-
-Beispiel:
-
-inbox              3
-today              7
-next 7 days       12
-
-Web Development
-├── TÆSKS          7
-└── Portfolio      3
-
-Counts nur für offene/relevante Items, sofern sinnvoll.
-
-==================================================
-80. DELETE BEHAVIOR
-==================================================
-
-Notion Task Delete:
-
-confirmation required.
-
-Contact Submission Delete:
-
-confirmation required.
-
-Local Attachment Delete:
-
-confirmation required.
-
-Keine browser-native confirm() Dialoge.
-
-Nutze konsistent gestaltete minimalistische Dialoge.
-
-==================================================
-81. REFRESH / SYNC
-==================================================
-
-Biete manuelles Refresh.
-
-Zum Beispiel:
-
-R
-
-oder Command Palette:
-
-Refresh Data
-
-Sync-Indikator kompakt:
-
-synced 12s ago
-
-Nicht ständig dominante Spinner anzeigen.
-
-==================================================
-82. LOGGING
-==================================================
-
-Server Logs strukturiert.
-
-Keine Secrets.
-
-Bei Integration Errors:
-
-source
-operation
-status
-correlation id
-
-Keine kompletten Auth Header loggen.
-
-==================================================
-83. README
-==================================================
-
-Erstelle vollständige README.
-
-Enthalten:
-
-- Was ist TÆSKS?
-- Architektur
-- Screenshots/Design-Prinzipien
-- Requirements
-- Environment Setup
-- Notion Integration
-- erwartete DB Relations
-- GitHub PAT Setup
-- Contact API
-- Docker Build
-- Docker Compose
-- Port 2015
-- persistent volume
-- Backup von /app/data
-- Troubleshooting
-- Security Notes
-- Optional LLM fallback
-- Health endpoint
-
-==================================================
-84. CONTACT STACK NICHT VERÄNDERN
-==================================================
-
-Sehr wichtig:
-
-Der bestehende Contact/Postgres Compose Stack ist NICHT Teil dieses Repositories.
-
-Er läuft separat.
-
-Die bestehende Architektur ungefähr:
-
-contact_db
-PostgreSQL 16
-
-contact_api
-PostgREST
-
-Host-Port:
-1917
-
-TÆSKS greift lediglich serverseitig über:
-
-CONTACT_API_BASE_URL
-
-darauf zu.
-
-Keine neuen Docker Networks verlangen.
-
-Keine Änderung des bestehenden Compose voraussetzen.
-
-==================================================
-85. DEFINITION OF DONE
-==================================================
-
-Das Projekt gilt erst als fertig, wenn ALLES Folgende erfüllt ist:
-
-[ ] Next.js App läuft
-[ ] TypeScript ohne Errors
-[ ] Lint erfolgreich
-[ ] Production Build erfolgreich
-[ ] Docker Image erfolgreich gebaut
-[ ] Container erfolgreich gestartet
-[ ] Port 2015 erreichbar
-[ ] Healthcheck funktioniert
-[ ] SQLite Migration funktioniert
-[ ] Daten bleiben nach Container Restart erhalten
-[ ] Dark Mode funktioniert
-[ ] Light Mode funktioniert
-[ ] Mobile funktioniert
-[ ] Desktop funktioniert
-[ ] Sidebar funktioniert
-[ ] Area Tree funktioniert
-[ ] Project View funktioniert
-[ ] Notion lesen funktioniert
-[ ] Notion Task erstellen funktioniert
-[ ] Notion Task bearbeiten funktioniert
-[ ] Notion Task abschließen funktioniert
-[ ] Notion Task löschen funktioniert
-[ ] Project/Area Relations validiert
-[ ] Quick Add funktioniert
-[ ] deutscher Parser funktioniert
-[ ] englischer Parser funktioniert
-[ ] Date Ranges funktionieren
-[ ] Live Parse Preview funktioniert
-[ ] Parser benötigt normalerweise kein LLM
-[ ] optionaler LLM Fallback funktioniert oder ist sauber deaktiviert
-[ ] Today View funktioniert
-[ ] Overdue funktioniert
-[ ] Next 7 Days Interval Logic funktioniert
-[ ] Upcoming funktioniert
-[ ] Anytime funktioniert
-[ ] Someday funktioniert
-[ ] Highlight funktioniert
-[ ] Tags funktionieren
-[ ] Priority funktioniert
-[ ] Notes funktionieren
-[ ] Attachments funktionieren
-[ ] Saved Filters funktionieren
-[ ] Search funktioniert
-[ ] Command Palette funktioniert
-[ ] GitHub read-only Integration funktioniert
-[ ] GitHub Token bleibt serverseitig
-[ ] Contact API wird serverseitig angesprochen
-[ ] Contact Liste funktioniert
-[ ] read/unread funktioniert, sofern API erlaubt
-[ ] delete funktioniert, sofern API erlaubt
-[ ] Contact -> Task funktioniert
-[ ] GitHub -> Task funktioniert
-[ ] Project ↔ Repo Mapping funktioniert
-[ ] README vollständig
-[ ] .env.example vollständig
-[ ] keine Secrets committed
-[ ] zentrale Parser Tests vorhanden
-[ ] relevante Integration Tests vorhanden
-
-==================================================
-86. WENN API KEYS NOCH FEHLEN
-==================================================
-
-Du darfst nicht blockieren, nur weil beim initialen Build noch keine echten API Keys vorhanden sind.
-
-Die Anwendung muss trotzdem:
-
-- builden
-- starten
-- Health Endpoint liefern
-- Setup/Diagnostics anzeigen
-
-Integrationen dürfen dann z.B. anzeigen:
-
-notion
-// not configured
-
-github
-// not configured
-
-contact
-// unavailable
-
-Aber:
-
-Keine Fake-Daten verwenden, sobald echte Integrationen konfiguriert sind.
-
-Für Entwicklung darfst du gezielte Fixtures für Tests verwenden.
-
-==================================================
-87. KEINE PLACEHOLDER-APP ALS ENDERGEBNIS
-==================================================
-
-Nicht akzeptabel:
-
-- TODO-Kommentare statt Implementierung
-- Fake Buttons
-- statische Demo-Daten als Hauptfunktion
-- "Implement this later"
-- nicht verdrahtete UI
-- nur Mockups
-- API Funktionen, die niemals aufgerufen werden
-- Dockerfile, das nicht getestet wurde
-
-Wenn etwas wegen einer externen API technisch nicht möglich ist:
-
-1. überprüfen
-2. sauber behandeln
-3. dokumentieren
-4. UI entsprechend deaktivieren
-
-Nicht simulieren.
-
-==================================================
-88. REIHENFOLGE DER IMPLEMENTIERUNG
-==================================================
-
-Arbeite ungefähr so:
-
-PHASE 1
-Repository und Architektur
-
-PHASE 2
-Design System + Shell
-
-PHASE 3
-SQLite + Persistence
-
-PHASE 4
-Notion Integration
-
-PHASE 5
-Area / Project / Task Tree
-
-PHASE 6
-Task CRUD
-
-PHASE 7
-Natural Language Parser
-
-PHASE 8
-Quick Add UI
-
-PHASE 9
-Views:
-Inbox
-Overview
-Today
-Next 7 Days
-Upcoming
-Anytime
-Someday
-
-PHASE 10
-Notes / Tags / Attachments / Filters
-
-PHASE 11
-GitHub
-
-PHASE 12
-Contact API
-
-PHASE 13
-Search / Command Palette / Shortcuts
-
-PHASE 14
-PWA / Mobile
-
-PHASE 15
-Docker
-
-PHASE 16
-Tests / QA
-
-Jede Phase muss abgeschlossen und geprüft sein, bevor die nächste beginnt.
-
-==================================================
-89. REFERENZBILDER
-==================================================
-
-Ich werde dir gemeinsam mit diesem Prompt mehrere Bilder und ggf. Videos geben.
-
-Sie zeigen insbesondere:
-
-- init.Tasks Feature Overview
-- Markdown Notes
-- Mobile Overview
-- Someday View
-- Sidebar / Lists
-- Project Detail
-- meine tatsächliche Notion Tasks Database
-- meine tatsächliche Notion Projects Database
-- meine tatsächliche Notion Areas Database
-
-Nutze sie aktiv.
-
-Analysiere:
-
-- Spacing
-- Hierarchie
-- Tree Layout
-- Font Sizing
-- Inline Comments
-- Date Presentation
-- Colors
-- Sidebar density
-- Mobile Header
-- Task Rows
-- Project UI
-- Note UI
-- Attachments
-- Quick Add Interaktion
-
-TÆSKS soll sich visuell und in seiner Informationsdichte klar an diesen Referenzen orientieren.
-
-Aber:
-
-Es muss als eigenständiges Produkt TÆSKS erkennbar bleiben.
-
-==================================================
-90. ENDZIEL
-==================================================
-
-Das Endprodukt soll sich NICHT anfühlen wie:
-
-"ein Dashboard, das Notion, GitHub und SQL nebeneinander anzeigt."
-
-Es soll sich anfühlen wie:
-
-MEIN persönliches Task Operating System.
-
-Notion bildet die Task-Struktur.
-
-TÆSKS bildet die Arbeitsoberfläche.
-
-GitHub liefert Development Context.
-
-Contact liefert externe Inputs.
-
-SQLite erweitert Notion um TÆSKS-spezifische Funktionen.
-
-Das zentrale mentale Modell lautet:
-
-CAPTURE
-↓
-UNDERSTAND
-↓
-AREA
-↓
-PROJECT
-↓
-TASK
-↓
-ACT
-
-TÆSKS soll extrem schnell sein.
-
-Ich soll einen Gedanken eingeben können:
-
-Make Presentation in English as Homework until Friday
-
-Enter drücken
-
-und TÆSKS versteht:
-
-Make Presentation
-→ Englisch
-→ Hausaufgaben
-→ today → Friday
-
-Gleichzeitig soll ich:
-
-- meine Projects sehen
-- meine Areas sehen
-- Notes speichern
-- Attachments verwalten
-- GitHub-Kontext sehen
-- Contact Submissions bearbeiten
-- Tasks daraus erzeugen
-- alle Tasks über Today / Upcoming etc. planen
-
-ohne die Anwendung verlassen zu müssen.
-
-Das ist die Vision.
-
-==================================================
-91. DEINE AUFGABE JETZT
-==================================================
-
-Beginne aus dem leeren Ordner.
-
-Erstelle zuerst einen konkreten internen Implementierungsplan.
-
-Danach arbeite die Phasen mit den sequenziellen Subagenten ab.
-
-Frage mich nur dann nach Informationen, wenn eine Entscheidung wirklich nicht aus:
-
-- diesem Prompt
-- den bereitgestellten Referenzbildern
-- dem tatsächlichen Repository-Zustand
-- den APIs/Schemas
-
-abgeleitet werden kann.
-
-Treffe kleine technische Entscheidungen selbstständig.
-
-Ändere aber keine fundamentalen Produktanforderungen.
-
-Teste das Ergebnis tatsächlich.
-
-Beende deine Arbeit erst, wenn das Docker-Image gebaut wurde und die Anwendung in einem Container erfolgreich läuft oder ein konkret nachgewiesener externer Blocker besteht.
-
-Liefere am Ende eine kurze Abschlussübersicht mit:
-
-- Architektur
-- implementierten Features
-- Docker Start Command
-- Port
-- benötigten Environment Variables
-- eventuell verbleibenden externen Voraussetzungen
-- durchgeführten Tests
-
-Das finale Ziel ist eine wirklich benutzbare erste Version von TÆSKS.
+The original request began from an empty folder, called for an internal plan and sequential specialist phases, and allowed small technical decisions without changing fundamental requirements. Ask only for decisions that cannot be derived from the brief, references, checkout or actual schemas. Test the result; prove an image/container works or identify a concrete external blocker. Report architecture, features, Docker command/port, configuration, external prerequisites and checks. For later work, current authorization and verification reports take precedence over these historical deployment instructions.

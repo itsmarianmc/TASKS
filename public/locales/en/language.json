@@ -1913,6 +1913,8 @@
     "catalogs.timeout": "The request timed out.",
     "catalogs.schema": "Invalid or unsupported catalog schema. Check version, metadata, aliases and value types.",
     "catalogs.unavailable": "Unavailable: network failure or redirect rejected.",
-    "catalogs.url": "Use an HTTP(S) URL without embedded credentials."
+    "catalogs.url": "Use an HTTP(S) URL without embedded credentials.",
+    "catalogs.external_group": "[!] External translations",
+    "catalogs.verified_group": "Verified translations"
   }
 }

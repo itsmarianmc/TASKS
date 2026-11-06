@@ -316,10 +316,11 @@ for (const response of ["success", "request-error", "saved-response", "offline-r
     const log = page.locator(".boot-status"), notion = log.locator('[data-step="notion"]');
     await expect(log).toContainText("Cached Notion graph restored");
     await expect(notion).toContainText("Connecting to Notion_");
-    await expect(log).toContainText("Connecting to Contact_");
-    await expect(log).toContainText("Preparing Contact_");
+    await expect(log.locator('[data-step="contact"]')).toHaveClass(/pending/);
+    await expect(log.locator('[data-step="prepare"]')).toHaveClass(/pending/);
     await expect(log).not.toContainText("GitHub");
     releaseGraph();
+    await expect(log.locator('[data-step="contact"]')).toHaveClass(/active/);
     if (response === "success") {
       await expect(notion).toContainText("Notion data loaded · 5 tasks · 2 projects · 2 areas");
       await expect(notion.locator(".boot-marker")).toHaveText("[✓]");
@@ -340,18 +341,20 @@ for (const response of ["success", "request-error", "saved-response", "offline-r
   });
 }
 
-test("Notion failure without a saved graph shows a clear error and can retry", async ({ page }) => {
+test("Notion failure without a saved graph opens the workspace with a warning and can refresh", async ({ page }) => {
   const state = await workspace(page, false, false, false, false);
+  if ((page.viewportSize()?.width ?? 1024) <= 760) state.local.preferences.sidebarCollapsed = true;
   state.local.notes = []; state.local.attachments = []; state.local.links = [];
   await initialSnapshot(page, undefined, state.local);
   state.failGraph = true;
   await page.goto("/");
+  await expect(page.locator(".boot-screen")).toHaveCount(0);
   await expect(page.locator(".boot-status")).toContainText("Notion unavailable · no saved data available");
   await expect(page.locator(".boot-status .boot-cursor")).toHaveCount(0);
-  await expect(page.locator(".boot-status")).not.toContainText("Workspace ready");
-  await expect(page.locator(".workspace")).toHaveCount(0);
+  await expect(page.locator(".boot-status")).toContainText("Workspace ready in offline mode");
+  await expect(page.locator(".workspace")).toBeVisible();
   state.failGraph = false;
-  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await page.getByRole("button", { name: "Refresh data", exact: true }).click();
   await expect(page.locator('.task-row[data-task-id="now"]')).toBeVisible();
   await expect(page.locator(".boot-screen")).toHaveCount(0);
 });

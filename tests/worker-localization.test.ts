@@ -1,8 +1,11 @@
 import { expect, it, vi } from "vitest";
 import vm from "node:vm";
-const state = vi.hoisted(() => ({ language: "de" }));
+const state = vi.hoisted(() => ({ language: `external:${"a".repeat(20)}:de` }));
 vi.mock("@/lib/server/repository", () => ({ repository: () => ({ getPreferences: async () => ({ language: state.language }) }) }));
-vi.mock("@/lib/server/catalogs", () => ({ configuredCatalogs: async () => ({ languages: [{ schemaVersion: 1, lang: "de", name: "German", locName: "Deutsch", strings: { "reminders.title": "TÆSKS / Erinnerung", "reminders.body": "Eine Erinnerung ist fällig. TÆSKS öffnen." } }], dates: [], diagnostics: [] }) }));
+vi.mock("@/lib/server/catalogs", () => ({ configuredCatalogs: async () => ({ languages: [
+  { id: "repo:de", origin: "repository", schemaVersion: 1, lang: "de", name: "German", locName: "Deutsch", strings: { "reminders.title": "Repository reminder" } },
+  { id: `external:${"a".repeat(20)}:de`, origin: "external", schemaVersion: 1, lang: "de", name: "German", locName: "Deutsch", strings: { "reminders.title": "TÆSKS / Erinnerung", "reminders.body": "Eine Erinnerung ist fällig. TÆSKS öffnen." } }
+], dates: [], diagnostics: [] }) }));
 import { GET } from "@/app/sw.js/route";
 
 it("uses validated generic catalog copy in the served worker while ignoring private payload fields", async () => {

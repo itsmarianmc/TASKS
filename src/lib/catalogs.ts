@@ -1,4 +1,5 @@
 import { z } from "zod";
+import english from "../../public/locales/en/language.json" with { type: "json" };
 
 export function normalizeLanguage(value: string): string | null {
   try { return Intl.getCanonicalLocales(value.trim())[0] ?? null; } catch { return null; }
@@ -34,19 +35,30 @@ export const dateCatalogSchema = z.object({ ...metadata, phrases: z.object({
   total += p.next.length + p.afterNext.length + Object.values(p.durations).reduce((count, value) => count + (Array.isArray(value) ? value.length : Object.keys(value).length), 0);
   if (total > 400) ctx.addIssue({ code: "custom", message: "At most 400 aliases/numbers per date catalog." });
 }).transform(catalog => ({ ...catalog, phrases: { ...catalog.phrases, weekStart: catalog.phrases.weekStart ?? localeWeekStart(catalog.lang) } }));
-export type LanguageCatalog = z.infer<typeof languageCatalogSchema>;
-export type DateCatalog = z.infer<typeof dateCatalogSchema>;
+interface CatalogSource { id?: string; origin?: "repository" | "external"; sourceOrder?: number }
+export type LanguageCatalog = z.infer<typeof languageCatalogSchema> & CatalogSource;
+export type DateCatalog = z.infer<typeof dateCatalogSchema> & CatalogSource;
 export interface Catalogs { languages: LanguageCatalog[]; dates: DateCatalog[]; diagnostics: string[] }
-export function selectLanguage(languages: LanguageCatalog[], saved?: string, preferred: readonly string[] = []): string {
-  const available = languages.map(value => value.lang);
+export const catalogId = (catalog: CatalogSource & { lang: string }) => catalog.id ?? catalog.lang;
+export function selectLanguage(languages: LanguageCatalog[], saved?: string, _preferred: readonly string[] = []): string {
+  if (saved && languages.some(value => catalogId(value) === saved)) return saved;
   const exact = saved && normalizeLanguage(saved);
-  if (exact && available.includes(exact)) return exact;
-  // An unavailable saved choice deliberately falls back to English.
-  if (!saved) for (const preference of preferred) {
-    const canonical = normalizeLanguage(preference);
-    if (!canonical) continue;
-    const match = available.find(lang => lang === canonical) ?? available.find(lang => lang.split("-")[0] === canonical.split("-")[0]);
-    if (match) return match;
+  // Legacy code-only preferences resolve to the repository, never an unrelated external source.
+  const legacy = exact && languages.find(value => value.lang === exact && value.origin !== "external");
+  if (legacy) return catalogId(legacy);
+  const fallback = languages.find(value => value.lang === "en" && value.origin !== "external");
+  return fallback ? catalogId(fallback) : "en";
+}
+
+export function compatibleCatalogPair(ui: unknown, dates: unknown, expectedLanguage?: string) {
+  const language = languageCatalogSchema.parse(ui), date = dateCatalogSchema.parse(dates);
+  if (language.lang !== date.lang || expectedLanguage && language.lang !== normalizeLanguage(expectedLanguage)) throw new Error("Catalog languages do not match.");
+  const keys = Object.keys(english.strings);
+  if (Object.keys(language.strings).length !== keys.length) throw new Error("Translation keys do not match this application version.");
+  const placeholders = (value: string) => [...value.matchAll(/\{(\w+)\}/g)].map(match => match[1]).sort().join(",");
+  for (const key of keys) {
+    const value = language.strings[key];
+    if (!value?.trim() || placeholders(value) !== placeholders(english.strings[key as keyof typeof english.strings])) throw new Error("Translation keys or placeholders do not match this application version.");
   }
-  return available.find(lang => lang === "en") ?? available.find(lang => lang.startsWith("en-")) ?? "en";
+  return { language, date };
 }

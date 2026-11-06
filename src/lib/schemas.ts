@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { normalizeLanguage } from "./catalogs";
 
 export const idSchema = z.string().min(1).max(128).regex(/^[\w.:\-]+$/);
 export const entityTypeSchema = z.enum(["task", "project", "area"]);
@@ -24,7 +25,10 @@ export const filterCriteriaSchema = z.object({
   highlight: z.boolean().optional(), someday: z.boolean().optional(), completed: z.boolean().optional(),
 }).strict().refine(value => !value.startDate || !value.endDate || value.startDate <= value.endDate, { message: "Filter deadline must be on or after its start date." });
 export const preferencesPatchSchema = z.object({
-  language: z.string().max(80).refine(value => { try { return Intl.getCanonicalLocales(value).length === 1; } catch { return false; } }).optional(), literalQuotedText: z.boolean().optional(),
+  language: z.string().max(160).refine(value => {
+    const code = /^(?:repo:|external:[a-f0-9]{20}:)(.+)$/.exec(value)?.[1] ?? value;
+    return !!normalizeLanguage(code);
+  }).optional(), literalQuotedText: z.boolean().optional(),
   showCompletedTasks: z.boolean().optional(), hideProjectsWithoutCurrentTasks: z.boolean().optional(),
   theme: z.enum(["light", "dark", "system"]).optional(), sidebarCollapsed: z.boolean().optional(),
   lastView: z.string().min(1).max(256).optional(), notificationPermissionAsked: z.boolean().optional(),

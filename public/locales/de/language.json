@@ -1913,6 +1913,8 @@
     "catalogs.timeout": "Die Anfrage hat das Zeitlimit überschritten.",
     "catalogs.schema": "Ungültiges oder nicht unterstütztes Katalogschema. Prüfe Version, Metadaten, Aliasse und Werttypen.",
     "catalogs.unavailable": "Nicht verfügbar: Netzwerkfehler oder Weiterleitung abgelehnt.",
-    "catalogs.url": "Verwende eine HTTP(S)-URL ohne eingebettete Zugangsdaten."
+    "catalogs.url": "Verwende eine HTTP(S)-URL ohne eingebettete Zugangsdaten.",
+    "catalogs.external_group": "[!] Externe Übersetzungen",
+    "catalogs.verified_group": "Verifizierte Übersetzungen"
   }
 }

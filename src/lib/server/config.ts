@@ -1,5 +1,6 @@
 import "server-only";
 import path from "node:path";
+import { cache } from "react";
 import { DEFAULT_TIMEZONE, MAX_UPLOAD_BYTES, type PublicConfig } from "@/lib/public-config";
 import { geminiStatus } from "./ai/config";
 
@@ -11,7 +12,7 @@ export function publicConfig(): PublicConfig {
   return { timezone, maxUploadBytes: MAX_UPLOAD_BYTES, appName: "TÆSKS", aiFallback: geminiStatus() };
 }
 
-export async function localizedConfig(): Promise<PublicConfig> {
+export const localizedConfig = cache(async (): Promise<PublicConfig> => {
   const { configuredCatalogs } = await import("./catalogs");
   return { ...publicConfig(), catalogs: await configuredCatalogs() };
-}
+});

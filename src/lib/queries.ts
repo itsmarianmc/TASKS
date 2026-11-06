@@ -57,16 +57,20 @@ export function useLocal(initialData?: LocalSnapshot) {
     refetchOnMount: true,
   });
 }
-export function useConfig(initialData?: PublicConfig) {
+export function useConfig(initialData?: PublicConfig, enabled = true) {
   return useQuery({
     queryKey: queryKeys.config,
+    enabled,
     queryFn: () => apiRequest<PublicConfig>("/api/config"),
     initialData,
     initialDataUpdatedAt: initialData ? 0 : undefined,
     staleTime: 300_000,
+    retry: false,
+    refetchInterval: 300_000,
+    refetchIntervalInBackground: false,
   });
 }
-export function useGraph(initialData?: GraphResponse) {
+export function useGraph(initialData?: GraphResponse, enabled = true) {
   const client = useQueryClient();
   const queryKey = queryKeys.graph;
   const initialCheck = useRef(true);
@@ -74,6 +78,7 @@ export function useGraph(initialData?: GraphResponse) {
   const [savedData, setSavedData] = useState(false);
   const query = useQuery({
     queryKey,
+    enabled,
     queryFn: ({ signal }) => optimisticRead(client, queryKey, async () => {
       const current = client.getQueryData<GraphResponse>(queryKey);
       const params = new URLSearchParams();

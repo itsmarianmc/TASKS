@@ -15,7 +15,34 @@ docker compose build
 docker compose up -d
 ```
 
-Open `http://HOST:2015`; protect access externally. Set `APP_ORIGIN` to the visible HTTPS origin when using a reverse proxy; leave blank for direct host-derived checks. Smartphone PWA APIs require HTTPS or localhost. Backups and restoration are described in the README; preserve the whole stopped `/app/data`, including SQLite WAL/SHM and uploads, and restore writable ownership 1001:1001. Do not run two server processes on one volume or use `down -v` during an ordinary update.
+Open `http://HOST:2015`; protect access externally. Set `APP_ORIGIN` to the exact visible HTTPS origin when using a reverse proxy; leave blank for direct host-derived checks. Smartphone PWA APIs require HTTPS or localhost. TÆSKS has no built-in login: restrict the whole application and API using a VPN or authenticated reverse proxy. JSON mutations enforce Origin checks; this does not replace authentication. The production CSP permits Next.js inline bootstrap but not unsafe-eval. Uploads and Markdown use validated boundaries. Contact's separate API must have its own role/RLS access controls.
+
+## Persistence, backups and updates
+
+Inspect `docker compose logs --tail=100`, `docker compose ps` and `http://HOST:2015/api/health`. `docker compose stop` preserves data. `docker compose down` removes the container while preserving the volume. **`docker compose down -v` deletes local data**; never use it for a routine update. Do not run multiple server processes on the same volume.
+
+Stop the container for a consistent backup. Copy the **whole `/app/data` directory**, including `taesks.db`, any `taesks.db-wal` / `taesks.db-shm`, and `uploads/`, together. Create a new backup destination outside the repository first:
+
+```powershell
+docker compose stop
+docker cp taesks:/app/data C:\Backups\taesks-2026-11-01
+# Check that the copy succeeded before restarting.
+docker compose start
+```
+
+A verified stopped bind mount or volume backup mechanism is also suitable. Keep a separate protected backup of `.env`. Notion, GitHub and Contact data are external and are not included in this backup. To restore, stop the app, restore the entire data directory, restore ownership and write access for UID/GID **1001:1001**, start it, then check health, notes and downloads. Prepare bind mounts with this ownership before use. Do not run permanently as root to bypass permissions.
+
+For application updates, rebuild and recreate the container while retaining its volume. Environment changes require recreation; container environment is fixed at startup. The image excludes `.env` and development data. No live service or device claim in the historical evidence below is a verification of later changes.
+
+## Translation runtime
+
+Build hooks scan `public/locales/<language>/`, validate both known JSON files and generate an internal bundled JSON index. It is included in the standalone server. All valid build-time languages, including English and German, work offline. Runtime refresh uses process memory, so it also works with a read-only application filesystem and writable `/app/data`; no Git checkout or writable source directory is required.
+
+Remote discovery checks public repository `main` every 30 minutes, separately from the baked-in bundle. It also refreshes external folders configured through server-only `TRANSLATION_FOLDER_URLS`. The browser polls public configuration every five minutes while open. Allow roughly 35 minutes for a remote change to appear, or reload after server refresh. A restart begins from bundled catalogs and discovers remote additions again. Last-good remote data is memory-only. Code/schema changes can require rebuilding. See [catalog rules and legacy migration](language-catalogs.md).
+
+## Integration troubleshooting
+
+Notion setup errors: share all three databases, verify IDs, property types, relation targets and completion mapping. Multi-source databases need explicit source IDs. GitHub partial errors: check PAT read permissions, selected repositories, organizational approval and expiry. Contact errors: check server reachability including any base path, header format and row/count policies; `localhost` inside a container means that container. Use `CONTACT_API_AUTH_HEADER` as one complete header line, such as `Authorization: Bearer YOUR_TOKEN`, or leave it empty for anonymous access. Keep the Contact/Postgres stack separate.
 
 ## Executed evidence — 2026-10-04 Europe/Berlin
 

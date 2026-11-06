@@ -6,6 +6,39 @@ References: [Notion multi-source upgrade](https://developers.notion.com/guides/g
 
 ## Configuration and discovery
 
+### First-time setup
+
+Create or identify **Tasks**, **Projects** and **Areas** databases in Notion. A database is the container; its data source holds the schema and rows used by the adapter. Add the same integration to all three using Notion's sharing/connections controls, and allow reading, inserting and updating page content. Merely knowing an ID does not grant access.
+
+Configure these required properties before connecting TÆSKS:
+
+| Data source | Property | Type and target | Configuration |
+| --- | --- | --- | --- |
+| Tasks | `Name` | Title | `NOTION_TASK_TITLE_PROPERTY` |
+| Tasks | `Due Date` | Date, with optional start/end range | `NOTION_TASK_DATE_PROPERTY` |
+| Tasks | `Area` | Relation to the configured **Areas** data source | `NOTION_TASK_AREA_PROPERTY` |
+| Tasks | `Project` | Relation to the configured **Projects** data source | `NOTION_TASK_PROJECT_PROPERTY` |
+| Tasks | `Highlight` | Checkbox, separate from completion | `NOTION_TASK_HIGHLIGHT_PROPERTY` |
+| Projects | Your title property | Title; inferred when unique | `NOTION_PROJECT_TITLE_PROPERTY` (optional name override) |
+| Projects | Your Areas relation, e.g. `Areas` | Relation to the configured **Areas** data source; inferred when unique | `NOTION_PROJECT_AREA_PROPERTY` (optional name override) |
+| Areas | Your title property | Title; inferred when unique | `NOTION_AREA_TITLE_PROPERTY` (optional name override) |
+
+Property names are literal identifiers, not UI translations. Existing German names may be configured unchanged. Environment defaults are shown above; persisted Settings mappings can override them. The adapter inspects types and relation targets and reports missing or ambiguous fields. It never creates databases, properties or status options for you.
+
+For example, link project **English** to area **Homework**. A normal task **Prepare presentation** must link to that project and that same area. A project can belong to several areas, but each normal task needs exactly one valid area and one project, with matching membership. The reverse relation properties Notion may create on Areas/Projects are not additional required fields; TÆSKS derives area project lists from the project-to-area relation. `Open Projects`, rollups, formulas and a `Tasks` reverse relation are not prerequisites.
+
+Set the four required variables below, recreate the container, then open **Settings & diagnostics → Notion diagnostics**. Confirm all sources and fields resolve before creating a task. A normal Notion database URL contains a database ID; a selected view ID is not a data-source ID. TÆSKS discovers the data source when the database contains exactly one. If it contains multiple sources, copy each intended source's ID from Notion's data-source controls/API and set the corresponding explicit variable below. The adapter checks that it belongs to the configured database.
+
+### Completion and optional metadata
+
+A separate Tasks checkbox (for example `Done`) or status property (for example `Status`) is needed to complete/reopen tasks. It is **optional for ordinary task CRUD**, but completion remains disabled without a safe mapping. The mapped Highlight checkbox is never used as completion. If there are multiple candidates, select one in diagnostics or set `NOTION_TASK_COMPLETION_PROPERTY`.
+
+For a checkbox, true means completed and false means open. For status, select an existing completed value and reopened value when inference is ambiguous, using Settings or `NOTION_TASK_COMPLETION_VALUE` / `NOTION_TASK_REOPEN_VALUE`. All options in a recognized completed status group read as complete. A reopened value must not belong to that completed set. TÆSKS does not invent options or guess among ambiguous values.
+
+Project Status (`status` or `select`), Priority (`select` or `status`), Date/Deadline (`date`) and Area Type (`select`, `status` or `rich_text`) are optional and conservatively discovered. Their explicit name variables are listed below. Task tags, priority, notes, uploads, reminders, recurrence and Someday are TÆSKS-local additions and do not require new Notion properties. Dates use `APP_TIMEZONE` (default `Europe/Berlin`); date-only values remain calendar days. A single entered deadline is stored with a start, because the adapter rejects deadline-only writes that Notion cannot represent faithfully.
+
+These instructions are grounded in `src/lib/server/notion.ts` schema resolution and mocked adapter tests. They are not a claim of live synchronization in the current environment. The following sections describe the detailed existing contracts.
+
 Required: `NOTION_TOKEN`, `NOTION_TASKS_DATABASE_ID`, `NOTION_PROJECTS_DATABASE_ID`, `NOTION_AREAS_DATABASE_ID`. Share all three databases with the integration and allow reading, inserting and updating page content. An unconfigured adapter returns an empty graph and explicit disabled diagnostics; production never loads fixtures.
 
 Optional `NOTION_TASKS_DATA_SOURCE_ID`, `NOTION_PROJECTS_DATA_SOURCE_ID`, `NOTION_AREAS_DATA_SOURCE_ID` are required when their database contains multiple data sources. An explicit data source must belong to its configured database. TÆSKS will never pick the first of several sources.

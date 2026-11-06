@@ -30,13 +30,15 @@ Screenshots use synthetic upstream records inside the browser tests. Local persi
 
 ## Screenshots
 
+Historical artifact paths below are retained as an inventory. The captures are not included in this checkout.
+
 | View | Desktop | Mobile |
 | --- | --- | --- |
-| Quick Add | [capture](../test-results/visibility-screenshots/desktop-quick-add.png) | [capture](../test-results/visibility-screenshots/mobile-quick-add.png) |
-| Overview / completed on | [capture](../test-results/visibility-screenshots/desktop-overview-completed-on.png) | [capture](../test-results/visibility-screenshots/mobile-overview-completed-on.png) |
-| Overview / completed off | [capture](../test-results/visibility-screenshots/desktop-overview-completed-off.png) | [capture](../test-results/visibility-screenshots/mobile-overview-completed-off.png) |
-| Sidebar filter off | [capture](../test-results/visibility-screenshots/desktop-sidebar-filter-off.png) | [capture](../test-results/visibility-screenshots/mobile-sidebar-filter-off.png) |
-| Sidebar filter on | [capture](../test-results/visibility-screenshots/desktop-sidebar-filter-on.png) | [filtered lists](../test-results/visibility-screenshots/mobile-filtered-lists.png) |
-| Settings / display | [capture](../test-results/visibility-screenshots/desktop-settings-display.png) | [capture](../test-results/visibility-screenshots/mobile-settings-display.png) |
-| Open task inspector | [capture](../test-results/visibility-screenshots/desktop-inspector-open.png) | [capture](../test-results/visibility-screenshots/mobile-inspector-open.png) |
-| Completed inspector | [capture](../test-results/visibility-screenshots/desktop-inspector-completed.png) | [capture](../test-results/visibility-screenshots/mobile-inspector-completed.png) |
+| Quick Add | `../test-results/visibility-screenshots/desktop-quick-add.png` | `../test-results/visibility-screenshots/mobile-quick-add.png` |
+| Overview / completed on | `../test-results/visibility-screenshots/desktop-overview-completed-on.png` | `../test-results/visibility-screenshots/mobile-overview-completed-on.png` |
+| Overview / completed off | `../test-results/visibility-screenshots/desktop-overview-completed-off.png` | `../test-results/visibility-screenshots/mobile-overview-completed-off.png` |
+| Sidebar filter off | `../test-results/visibility-screenshots/desktop-sidebar-filter-off.png` | `../test-results/visibility-screenshots/mobile-sidebar-filter-off.png` |
+| Sidebar filter on | `../test-results/visibility-screenshots/desktop-sidebar-filter-on.png` | `../test-results/visibility-screenshots/mobile-filtered-lists.png` |
+| Settings / display | `../test-results/visibility-screenshots/desktop-settings-display.png` | `../test-results/visibility-screenshots/mobile-settings-display.png` |
+| Open task inspector | `../test-results/visibility-screenshots/desktop-inspector-open.png` | `../test-results/visibility-screenshots/mobile-inspector-open.png` |
+| Completed inspector | `../test-results/visibility-screenshots/desktop-inspector-completed.png` | `../test-results/visibility-screenshots/mobile-inspector-completed.png` |

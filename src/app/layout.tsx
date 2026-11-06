@@ -1,6 +1,6 @@
 import { localizedConfig } from "@/lib/server/config";
 import { repository } from "@/lib/server/repository";
-import { selectLanguage } from "@/lib/catalogs";
+import { catalogId, selectLanguage } from "@/lib/catalogs";
 import { headers } from "next/headers";
 import type { Metadata, Viewport } from "next";
 import { Providers } from "./providers";
@@ -11,6 +11,7 @@ export const viewport: Viewport = { width: "device-width", initialScale: 1, view
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const [config, local, requestHeaders] = await Promise.all([localizedConfig(), Promise.resolve().then(() => repository().snapshot()).catch(() => undefined), headers()]);
   const initialConfig = { ...config, preferredLanguages: (requestHeaders.get("accept-language") ?? "en").split(",").map(value => value.split(";")[0].trim()) };
-  const language = selectLanguage(config.catalogs?.languages ?? [], local?.preferences.language, initialConfig.preferredLanguages);
+  const selection = selectLanguage(config.catalogs?.languages ?? [], local?.preferences.language);
+  const language = config.catalogs?.languages.find(value => catalogId(value) === selection)?.lang ?? "en";
   return <html lang={language}><head><link rel="stylesheet" href="https://static.itsmarian.dev/fonts/font-awesome-v7.2.0/css/all.min.css" precedence="sidebar-icons" crossOrigin="anonymous" /></head><body><Providers initialConfig={initialConfig} initialLocal={local}>{children}</Providers></body></html>;
 }

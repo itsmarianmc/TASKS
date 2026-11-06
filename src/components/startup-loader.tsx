@@ -22,7 +22,7 @@ export function StartupLoader({ steps, ready = false, onRetry, children }: { ste
   if (hold.prepared !== prepared) setHold({ prepared, elapsed: false });
   const exiting = prepared && hold.elapsed;
   const shownSteps = currentSteps.filter(step => step.id !== "ready" || prepared).map(step =>
-    step.id === "prepare" && !prepared ? { ...step, state: "active" as const } : step);
+    step.id === "prepare" && step.state === "done" && !prepared ? { ...step, state: "active" as const } : step);
   const active = !finished && shownSteps.some(step => step.state === "active");
   const [frame, setFrame] = useState(0);
   useEffect(() => {
@@ -77,7 +77,7 @@ export function StartupLoader({ steps, ready = false, onRetry, children }: { ste
         {!finished && <span className="boot-brand">T<span className="brand-mark"><span>[</span><i>Æ</i><span>]</span></span>SKS.</span>}
         <div className="boot-status" role="status" aria-live="polite" aria-atomic="true">
           {shownSteps.map(step => <p className={`boot-line ${step.state}`} key={step.id} data-step={step.id}>
-            <span className="boot-marker" aria-hidden="true">{step.state === "active" ? markers[frame] : step.state === "done" ? "[✓]" : "[!]"}</span>
+            <span className="boot-marker" aria-hidden="true">{step.state === "pending" ? "[ ]" : step.state === "active" ? markers[frame] : step.state === "done" ? "[✓]" : "[!]"}</span>
             <span>{tx(step.text)}{step.state === "active" && <span className="boot-cursor" aria-hidden="true">_</span>}</span>
           </p>)}
         </div>

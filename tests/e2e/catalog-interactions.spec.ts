@@ -153,6 +153,7 @@ test("manual dates reject an extra year digit in both shared fields without cras
 
 test("language catalogs translate labels and Undo while user titles remain literal; selection persists", async ({ page }) => {
   const state = await workspace(page, false, false, false);
+  state.local.preferences.language = "de";
   const { strings } = JSON.parse(readFileSync(new URL("../../public/locales/en/language.json", import.meta.url), "utf8")) as { strings: Record<string, string> };
   const keyFor = (english: string) => Object.entries(strings).find(([, value]) => value === english)![0];
   const translations = Object.fromEntries([ ["Today", "Heute"], ["Settings & diagnostics", "Einstellungen"], ["Settings", "Einstellungen"], ["Language", "Sprache"], ["Quick add", "Schnell hinzufügen"], ["Task input", "Aufgabe eingeben"] ].map(([english, translated]) => [keyFor(english), translated]));

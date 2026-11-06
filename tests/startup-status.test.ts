@@ -24,8 +24,14 @@ describe("terminal startup status", () => {
     expect(status.steps.some(step => step.text.includes("GitHub"))).toBe(false);
   });
   it("completes a requested settings read with a success marker", () => {
-    expect(startupStatus({ ...base, config: "pending", configRequired: true }).steps).toContainEqual({ id: "config", state: "active", text: "Loading workspace settings" });
-    expect(startupStatus({ ...base, config: "ready", configRequired: true }).steps).toContainEqual({ id: "config", state: "done", text: "Workspace settings loaded" });
+    expect(startupStatus({ ...base, notion: "ready", config: "pending", configRequired: true }).steps).toContainEqual({ id: "config", state: "active", text: "Loading workspace settings" });
+    expect(startupStatus({ ...base, notion: "ready", config: "ready", configRequired: true }).steps).toContainEqual({ id: "config", state: "done", text: "Workspace settings loaded" });
+  });
+  it("keeps every later step pending until the previous step settles, including failures", () => {
+    const input = { ...base, configRequired: true, config: "pending" as const, sources: [{ name: "GitHub" as const, state: "pending" as const }, { name: "Contact" as const, state: "pending" as const }] };
+    expect(startupStatus({ ...input, local: "pending" }).steps.map(step => step.state)).toEqual(["active", "pending", "pending", "pending", "pending"]);
+    expect(startupStatus(input).steps.map(step => step.state)).toEqual(["done", "active", "pending", "pending", "pending", "pending"]);
+    expect(startupStatus({ ...input, notion: "disabled", config: "error" }).steps.map(step => step.state)).toEqual(["done", "warning", "warning", "active", "pending", "pending"]);
   });
   it.each(["error", "saved"] as const)("releases saved data after %s without claiming a successful load", notion => {
     const status = startupStatus({ ...base, notion, cachedGraph: true, savedData: true, prepared: true });
@@ -33,10 +39,11 @@ describe("terminal startup status", () => {
     expect(status.steps).toContainEqual({ id: "notion", state: "warning", text: "Notion unavailable · showing saved data" });
     expect(status.steps.at(-1)?.text).toBe("Workspace ready in offline mode");
   });
-  it("offers retry without reporting readiness when no graph can be used", () => {
+  it("continues with local content and diagnostics when Notion has no usable graph", () => {
     const status = startupStatus({ ...base, notion: "error", prepared: true });
-    expect(status.blocked).toBe("notion");
-    expect(status.steps.at(-1)).toEqual({ id: "notion", state: "error", text: "Notion unavailable · no saved data available" });
+    expect(status.blocked).toBeNull();
+    expect(status.steps).toContainEqual({ id: "notion", state: "warning", text: "Notion unavailable · no saved data available" });
+    expect(status.steps.at(-1)?.text).toBe("Workspace ready in offline mode");
   });
   it("stops at an unavailable local workspace and never logs entity IDs", () => {
     const error = startupStatus({ ...base, local: "error", view: "project:private-page-id" });

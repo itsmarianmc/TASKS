@@ -8,8 +8,8 @@ export function githubUrl(repository?: string, section?: GitHubSectionName, page
   if (repository && section) { search.set("repository", repository); search.set("section", section); }
   if (force) search.set("refresh", "1"); return `/api/github?${search}`;
 }
-export function useGitHub(page = 1) { return useQuery({ queryKey: ["github", "dashboard", page], queryFn: () => apiRequest<GitHubDashboard>(githubUrl(undefined, undefined, page)), retry: false, staleTime: 60_000, refetchInterval: 60_000, refetchIntervalInBackground: false, refetchOnWindowFocus: true }); }
-export function useGitHubSection(repository: string, section: GitHubSectionName, page = 1) { return useQuery({ queryKey: ["github", "section", repository, section, page], queryFn: () => apiRequest<GitHubSectionResponse>(githubUrl(repository, section, page)), enabled: !!repository, retry: false, staleTime: 60_000 }); }
+export function useGitHub(page = 1, enabled = true) { return useQuery({ queryKey: ["github", "dashboard", page], queryFn: () => apiRequest<GitHubDashboard>(githubUrl(undefined, undefined, page)), enabled, retry: false, staleTime: 60_000, refetchInterval: 60_000, refetchIntervalInBackground: false, refetchOnWindowFocus: true }); }
+export function useGitHubSection(repository: string, section: GitHubSectionName, page = 1, enabled = true) { return useQuery({ queryKey: ["github", "section", repository, section, page], queryFn: () => apiRequest<GitHubSectionResponse>(githubUrl(repository, section, page)), enabled: enabled && !!repository, retry: false, staleTime: 60_000 }); }
 export function collectGitHubCache(records: { key: readonly unknown[]; data: unknown }[]) {
   const items = new Map<string, GitHubItem>(); const repositories = new Map<string, GitHubRepository>();
   let limited = false; let failed = false;

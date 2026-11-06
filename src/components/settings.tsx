@@ -41,7 +41,7 @@ export function SettingsView({
   const { t, text: tx } = useTranslation();
   const mutation = useLocalMutation();
   const catalogConfig = useConfig();
-  const { languages, locale } = useTranslation();
+  const { languages, selection } = useTranslation();
   const github = useGitHub();
   const refresh = useRefresh();
   const client = useQueryClient();
@@ -138,8 +138,13 @@ export function SettingsView({
       <section className="settings-section">
         <h2>{t("ui.language_parsing")}</h2>
         <label htmlFor="language">{t("ui.language_89b86ab")}</label>
-        <select id="language" aria-label={t("ui.language_89b86ab")} value={locale} onChange={event => mutation.mutate({ action: "setPreferences", patch: { language: event.target.value } })}>
-          {languages.map(language => <option key={language.lang} value={language.lang}>{language.locName}</option>)}
+        <select id="language" aria-label={t("ui.language_89b86ab")} aria-describedby="language-origin" value={selection} onChange={event => mutation.mutate({ action: "setPreferences", patch: { language: event.target.value } })}>
+          {languages.some(language => language.origin === "external") && <optgroup label={t("catalogs.external_group")}>
+            {languages.filter(language => language.origin === "external").map(language => <option key={language.id} value={language.id}>[!] {language.locName} ({language.sourceOrder})</option>)}
+          </optgroup>}
+          <optgroup label={t("catalogs.verified_group")}>
+            {languages.filter(language => language.origin !== "external").map(language => <option key={language.id ?? language.lang} value={language.id ?? language.lang}>{language.locName}</option>)}
+          </optgroup>
         </select>
         {catalogConfig.data?.catalogs?.diagnostics.map((message, index) => {
           const failure = /^Catalog (\d+) \((language|date)\): (.*)$/.exec(message);

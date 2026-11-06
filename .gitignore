@@ -13,3 +13,4 @@ test-results/
 *.log
 .DS_Store
 .qa*
+src/lib/generated/bundled-catalogs.json

@@ -10,6 +10,8 @@ const metadata = (taskId: string, patch: Partial<TaskMetadata> = {}): TaskMetada
 
 /** Synthetic upstream data is scoped to Playwright routes, never application runtime. */
 export async function workspace(page: Page, githubEnabled = false, contactEnabled = false, open = true, clock = true) {
+  // Keep fixture checks independent of the optional remote icon stylesheet.
+  await page.route("https://static.itsmarian.dev/**", route => route.fulfill({ contentType: "text/css", body: "" }));
   if (clock) await page.clock.install({ time: new Date(instant) });
   const state = {
     graph: { syncedAt: instant, areas: [{ id: "homework", name: "Homework", type: "School", url: "https://notion.so/homework", projectIds: ["english", "shared"] }, { id: "work", name: "Work", type: "Professional", url: "https://notion.so/work", projectIds: ["shared"] }], projects: [{ id: "english", name: "English", areaIds: ["homework"], status: "Active", priority: "Medium", dates: { start: today, end: "2026-12-01" }, url: "https://notion.so/english" }, { id: "shared", name: "Shared", areaIds: ["homework", "work"], status: null, priority: null, dates: { start: null, end: null }, url: "https://notion.so/shared" }], tasks: [makeTask("overdue", "Overdue essay", "2026-10-01", "2026-10-02"), makeTask("now", "Review presentation", today, "2026-10-09", { highlight: true }), makeTask("future", "Future highlight", "2026-10-18", "2026-10-20", { highlight: true }), makeTask("done", "Completed reading", today, "2026-10-03", { completed: true, completedAt: instant }), makeTask("someday", "Someday idea", today, null)] } as Graph,
